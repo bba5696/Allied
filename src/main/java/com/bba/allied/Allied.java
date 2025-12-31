@@ -1,24 +1,35 @@
 package com.bba.allied;
 
+import com.bba.allied.commands.commands;
+import com.bba.allied.data.datConfig;
+import com.bba.allied.data.datManager;
 import net.fabricmc.api.ModInitializer;
 
+import net.minecraft.nbt.NbtCompound;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+
 public class Allied implements ModInitializer {
 	public static final String MOD_ID = "allied";
-
-	// This logger is used to write text to the console and the log file.
-	// It is considered best practice to use your mod id as the logger's name.
-	// That way, it's clear which mod wrote info, warnings, and errors.
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	@Override
 	public void onInitialize() {
-		// This code runs as soon as Minecraft is in a mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
+		LOGGER.info("Initialising Allied Mod...");
 
-		LOGGER.info("Hello Fabric world!");
-	}
+        try {
+            datConfig.InitialiseDatFolder();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+		LOGGER.info("Allied Mod Data Loaded!");
+
+        // NbtCompound root = datManager.get().getData();
+        // LOGGER.info(root.toString());
+
+        commands.registerCommands();
+    }
 }

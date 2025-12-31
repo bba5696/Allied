@@ -3,23 +3,20 @@
 	"id": "allied",
 	"version": "${version}",
 	"name": "Allied",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "A mod re-imagining teams, an all in one mod with essential team features for fabric, forge and neo-forge",
 	"authors": [
 		"Me!"
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"sources": "https://github.com/bba5696/Allied"
 	},
-	"license": "CC0-1.0",
+	"license": "All Rights Reserved",
 	"icon": "assets/allied/icon.png",
-	"environment": "*",
+	"environment": "server",
 	"entrypoints": {
 		"main": [
 			"com.bba.allied.Allied"
-		],
-		"fabric-datagen": [
-			"com.bba.allied.AlliedDataGenerator"
 		]
 	},
 	"mixins": [
