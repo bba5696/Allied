@@ -1,5 +1,6 @@
 package com.bba.allied.data;
 
+import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.fabricmc.loader.api.FabricLoader;
@@ -7,6 +8,7 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
@@ -86,7 +88,6 @@ public class datManager {
         return isOwnerOfATeam(uuid) || isMemberOfATeam(uuid);
     }
 
-
     public void addTeam(String teamName, String teamTag, UUID ownerUUID) throws CommandSyntaxException {
         if (isInTeam(ownerUUID)) {
             throw new SimpleCommandExceptionType(
@@ -132,7 +133,7 @@ public class datManager {
         throw new SimpleCommandExceptionType(Text.of("You don't own a team!")).create();
     }
 
-    public void sendRequest(String targetTeamName, UUID playerUUID) throws CommandSyntaxException {
+    public void sendRequest(String targetTeamName, UUID playerUUID, MinecraftServer server) throws CommandSyntaxException {
         if (isInTeam(playerUUID)) {
             throw new SimpleCommandExceptionType(
                     Text.of("You are in a team already!")
@@ -170,6 +171,94 @@ public class datManager {
             }
         }
 
+        ServerPlayerEntity player = server.getPlayerManager().getPlayer(playerUUID);
+        String requesterName = "";
+        if (player != null) {
+            requesterName = player.getGameProfile().name();
+        }
+
+        ServerPlayerEntity owner = server.getPlayerManager()
+                .getPlayer(UUID.fromString(teamData.getString("owner").orElseThrow()));
+
+        if (owner != null) {
+            Text accept = Text.literal("[ACCEPT]")
+                    .formatted(Formatting.GREEN)
+                    .styled(style -> style
+                            .withClickEvent(new ClickEvent.RunCommand("/teams accept"+ " " + playerUUID))
+                            .withHoverEvent(new HoverEvent.ShowText(Text.literal("Accept join request")))
+                    );
+
+            Text deny = Text.literal("[DENY]")
+                    .formatted(Formatting.RED)
+                    .styled(style -> style
+                            .withClickEvent(new ClickEvent.RunCommand("/teams deny" + " " + playerUUID))
+                            .withHoverEvent(new HoverEvent.ShowText(Text.literal("Deny join request")))
+                    );
+
+            owner.sendMessage(
+                    Text.literal( requesterName + " wants to join your team ")
+                            .append(Text.literal(targetTeamName).formatted(Formatting.YELLOW))
+                            .append(Text.literal("\n"))
+                            .append(accept)
+                            .append(Text.literal(" "))
+                            .append(deny),
+                    false
+            );
+        }
+
+    }
+
+    public void handleRequest(UUID ownerUUID, UUID requesterUUID, boolean accept) throws IOException, CommandSyntaxException {
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+        String ownerStr = ownerUUID.toString();
+
+        NbtCompound teamData = null;
+        String teamNameFound = null;
+
+        // Find the team owned by this UUID
+        for (String teamName : teams.getKeys()) {
+            NbtCompound team = teams.getCompoundOrEmpty(teamName);
+            String storedOwner = team.getString("owner").orElseThrow();
+            if (ownerStr.equalsIgnoreCase(storedOwner)) {
+                teamData = team;
+                teamNameFound = teamName;
+                break;
+            }
+        }
+
+        if (teamData == null || teamData.isEmpty()) {
+            throw new SimpleCommandExceptionType(Text.of("You do not own a team!")).create();
+        }
+
+        // Get the join requests list
+        NbtList requests = teamData.getListOrEmpty("joinRequests"); // 8 = String type
+        String requesterStr = requesterUUID.toString();
+
+        boolean found = false;
+        for (int i = 0; i < requests.size(); i++) {
+            String requestUUID = requests.getString(i).orElseThrow( );
+            if (requesterStr.equals(requestUUID)) {
+                found = true;
+                requests.remove(i);
+                break;
+            }
+        }
+
+        if (!found) {
+            throw new SimpleCommandExceptionType(Text.of("No pending request from this player!")).create();
+        }
+
+        // Accept the request
+        if (accept) {
+            NbtList members = teamData.getListOrEmpty("members");
+            members.add(NbtString.of(requesterStr));
+        }
+
+        save();
+    }
+
+    public void handleSettings(UUID ownerUUID, String setting, boolean value) {
+
     }
 
     public static NbtCompound createTeam(String teamTag, UUID ownerUUID) {
@@ -185,6 +274,7 @@ public class datManager {
         teamData.put("members", new NbtList());
 
         teamData.put("joinRequests", new NbtList());
+        teamData.put("invites", new NbtList());
 
         // Settings
         teamData.putBoolean("friendlyFire", false);
@@ -192,6 +282,5 @@ public class datManager {
 
         return teamData;
     }
-
 }
 

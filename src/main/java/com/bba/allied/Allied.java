@@ -27,9 +27,6 @@ public class Allied implements ModInitializer {
 
 		LOGGER.info("Allied Mod Data Loaded!");
 
-        // NbtCompound root = datManager.get().getData();
-        // LOGGER.info(root.toString());
-
         commands.registerCommands();
     }
 }

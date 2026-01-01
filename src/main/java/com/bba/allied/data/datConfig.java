@@ -2,14 +2,9 @@ package com.bba.allied.data;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtHelper;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.WorldSavePath;
-import net.minecraft.util.Identifier;
 
 import java.io.*;
-import java.util.UUID;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
