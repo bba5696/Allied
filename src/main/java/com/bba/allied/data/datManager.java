@@ -14,6 +14,8 @@ import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import org.jspecify.annotations.Nullable;
+import net.minecraft.text.MutableText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,6 +97,12 @@ public class datManager {
             ).create();
         }
 
+        if (teamName.length() > 16 || teamTag.length() > 4) {
+            throw new SimpleCommandExceptionType(
+                    Text.of("Team Name or Team Tag is too long!")
+            ).create();
+        }
+
         NbtCompound teams = data.getCompoundOrEmpty("teams"); // get the parent container
         if (teams.contains(teamName.toLowerCase()) || teams.contains(teamTag.toLowerCase())) {
             throw new SimpleCommandExceptionType(
@@ -154,21 +162,23 @@ public class datManager {
         String playerUuidStr = playerUUID.toString();
 
         // Check if UUID is already in the list
-        boolean exists = false;
         for (int i = 0; i < requests.size(); i++) {
-            if (requests.getString(i).equals(playerUuidStr)) {
-                exists = true;
-                break;
+            if (requests.get(i).getType() == 8) { // ensure it's a string
+                String existing = requests.getString(i).orElse(null);
+                assert existing != null;
+                if (existing.equalsIgnoreCase(playerUuidStr)) {
+                    throw new SimpleCommandExceptionType(
+                            Text.of("You have already requested to join this team!")
+                    ).create();
+                }
             }
         }
 
-        if (!exists) {
-            requests.add(NbtString.of(playerUuidStr)); // add new string to NbtList
-            try {
-                save();
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to save join request", e);
-            }
+        requests.add(NbtString.of(playerUuidStr)); // add new string to NbtList
+        try {
+            save();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to save join request", e);
         }
 
         ServerPlayerEntity player = server.getPlayerManager().getPlayer(playerUUID);
@@ -257,8 +267,82 @@ public class datManager {
         save();
     }
 
-    public void handleSettings(UUID ownerUUID, String setting, boolean value) {
+    public void handleSettings(ServerPlayerEntity player, @Nullable String settingKey, @Nullable Boolean value) throws CommandSyntaxException, IOException {
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+        String teamName = null;
 
+        // Determine team
+        // Find team owned by player
+        UUID playerUUID = player.getUuid();
+        for (String key : teams.getKeys()) {
+            NbtCompound teamData = teams.getCompoundOrEmpty(key);
+            String owner = teamData.getString("owner").orElse("");
+            if (owner.equalsIgnoreCase(playerUUID.toString())) {
+                teamName = key;
+                break;
+            }
+        }
+
+        if (teamName == null) {
+            throw new SimpleCommandExceptionType(Text.of("You don't own a team!")).create();
+        }
+
+        NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+        NbtCompound settings = teamData.getCompoundOrEmpty("settings");
+
+        // Case 1: Show all settings if no specific key is provided
+        if (settingKey == null || value == null) {
+            showTeamSettings(player, teamName);
+            return;
+        }
+
+        // Case 2: Toggle / set a specific setting
+        if (!settings.contains(settingKey)) {
+            throw new SimpleCommandExceptionType(Text.of("Setting '" + settingKey + "' does not exist!")).create();
+        }
+
+        settings.putBoolean(settingKey, value);
+        save();
+
+        player.sendMessage(Text.literal("Setting '" + settingKey + "' is now " + value), false);
+    }
+
+    public void showTeamSettings(ServerPlayerEntity player, String teamName) {
+        NbtCompound teams = datManager.get().getData().getCompoundOrEmpty("teams");
+        NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+        NbtCompound settings = teamData.getCompoundOrEmpty("settings");
+
+        MutableText message = Text.literal("Team Settings for " + teamName + ":\n");
+
+        for (String key : settings.getKeys()) {
+            boolean value = settings.getBoolean(key).orElse(false);
+
+            Text status = Text.literal(value ? "[ENABLED]" : "[DISABLED]").formatted(value ? Formatting.GREEN : Formatting.RED);
+            Text enableButton = Text.literal("[ENABLE]")
+                    .styled(style -> style
+                            .withColor(Formatting.GREEN)
+                            .withClickEvent(new ClickEvent.RunCommand("/teams settings" + " " + key + " " + true))
+                            .withHoverEvent(new HoverEvent.ShowText(Text.literal("Enable " + key)))
+                    );
+
+            Text disableButton = Text.literal("[DISABLE]")
+                    .styled(style -> style
+                            .withColor(Formatting.RED)
+                            .withClickEvent(new ClickEvent.RunCommand("/teams settings" + " " + key + " " + false))
+                            .withHoverEvent(new HoverEvent.ShowText(Text.literal("Disable " + key)))
+                    );
+
+            // Add the line to the message
+            message = message
+                    .append(Text.literal("\n" + key + " "))
+                    .append(status)
+                    .append(Text.literal(" "))
+                    .append(enableButton)
+                    .append(Text.literal(" "))
+                    .append(disableButton);
+        }
+
+        player.sendMessage(message, false);
     }
 
     public static NbtCompound createTeam(String teamTag, UUID ownerUUID) {
@@ -266,6 +350,7 @@ public class datManager {
 
         // Team tag (like short abbreviation)
         teamData.putString("teamTag", teamTag);
+        teamData.putString("tagColor", "White");
 
         // Owner of the team (UUID stored as string)
         teamData.putString("owner", ownerUUID.toString());
@@ -276,9 +361,17 @@ public class datManager {
         teamData.put("joinRequests", new NbtList());
         teamData.put("invites", new NbtList());
 
-        // Settings
-        teamData.putBoolean("friendlyFire", false);
-        teamData.putBoolean("highlight", false);
+        // Create a compound for settings
+        NbtCompound settings = new NbtCompound();
+
+        // Add the booleans
+        settings.putBoolean("friendlyFire", false);
+        settings.putBoolean("highlight", false);
+        settings.putBoolean("allowRequests", true);
+        settings.putBoolean("chatUseTag", true);
+
+        // Put the compound into the team
+        teamData.put("settings", settings);
 
         return teamData;
     }

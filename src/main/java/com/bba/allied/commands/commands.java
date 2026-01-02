@@ -1,10 +1,12 @@
 package com.bba.allied.commands;
 
 import com.bba.allied.data.datManager;
+import com.bba.allied.teamUtils.teamUtils;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -42,6 +44,7 @@ public class commands {
 
                                                         datManager.get().addTeam(teamName, teamTag, ownerUuid);
 
+
                                                         context.getSource().sendFeedback(
                                                                 () -> Text.of("Successfully created team " + teamName),
                                                                 false
@@ -64,6 +67,9 @@ public class commands {
                                         } catch (IOException e) {
                                             throw new RuntimeException(e);
                                         }
+
+                                        ServerCommandSource source = context.getSource();
+                                        MinecraftServer server = source.getServer();
 
                                         context.getSource().sendFeedback(
                                                 () -> Text.of("Successfully Disbanded team"),
@@ -142,6 +148,9 @@ public class commands {
                                                     return 0;
                                                 }
 
+                                                ServerCommandSource source = context.getSource();
+                                                MinecraftServer server = source.getServer();
+
                                                 context.getSource().sendFeedback(
                                                         () -> Text.literal("Accepted join request from " + targetName),
                                                         false
@@ -193,8 +202,78 @@ public class commands {
                                     )
                             )
 
+                            .then(CommandManager.literal("settings")
+                                    // /team settings → show all settings
+                                    .executes(context -> {
+                                        ServerPlayerEntity player = context.getSource().getPlayer();
+                                        try {
+                                            assert player != null;
+                                            datManager.get().handleSettings(player, null, null);
+                                        } catch (IOException e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                        return 1;
+                                    })
+                                    // /team settings <setting> → just select a setting (optional value)
+                                    .then(CommandManager.argument("setting", StringArgumentType.string())
+                                            .suggests((context, builder) -> {
+                                                ServerPlayerEntity player = context.getSource().getPlayer();
+                                                NbtCompound teams = datManager.get().getData().getCompoundOrEmpty("teams");
 
-            );
+                                                // Find the team owned by this player
+                                                NbtCompound teamData = null;
+                                                for (String teamName : teams.getKeys()) {
+                                                    NbtCompound team = teams.getCompoundOrEmpty(teamName);
+                                                    assert player != null;
+                                                    if (team.getString("owner").orElse("").equals(player.getUuid().toString())) {
+                                                        teamData = team;
+                                                        break;
+                                                    }
+                                                }
+
+                                                if (teamData == null) return builder.buildFuture();
+
+                                                // Suggest all available settings
+                                                NbtCompound settings = teamData.getCompoundOrEmpty("settings");
+                                                for (String key : settings.getKeys()) builder.suggest(key);
+
+                                                return builder.buildFuture();
+                                            })
+                                            .executes(context -> {
+                                                // just /team settings <setting> → show current value
+                                                String setting = StringArgumentType.getString(context, "setting");
+                                                ServerPlayerEntity player = context.getSource().getPlayer();
+                                                try {
+                                                    assert player != null;
+                                                    datManager.get().handleSettings(player, setting, null);
+                                                } catch (IOException e) {
+                                                    throw new RuntimeException(e);
+                                                }
+                                                return 1;
+                                            })
+                                            // /team settings <setting> <value> → toggle setting
+                                            .then(CommandManager.argument("value", BoolArgumentType.bool())
+                                                    .executes(context -> {
+                                                        String setting = StringArgumentType.getString(context, "setting");
+                                                        boolean value = BoolArgumentType.getBool(context, "value");
+                                                        ServerPlayerEntity player = context.getSource().getPlayer();
+
+                                                        try {
+                                                            assert player != null;
+                                                            datManager.get().handleSettings(player, setting, value);
+                                                        } catch (IOException e) {
+                                                            throw new RuntimeException(e);
+                                                        }
+
+                                                        context.getSource().sendFeedback(
+                                                                () -> Text.literal("Setting '" + setting + "' updated to " + value),
+                                                                false
+                                                        );
+                                                        return 1;
+                                                    })
+                                            )
+                                    )
+                            ));
 
 
         });
