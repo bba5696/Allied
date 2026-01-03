@@ -14,13 +14,16 @@ import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
 import net.minecraft.text.MutableText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -317,8 +320,6 @@ public class datManager {
 
         settings.putBoolean(settingKey, value);
         save();
-
-        player.sendMessage(Text.literal("Setting '" + settingKey + "' is now " + value), false);
     }
 
     public void showTeamSettings(ServerPlayerEntity player, String teamName) {
@@ -326,12 +327,14 @@ public class datManager {
         NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
         NbtCompound settings = teamData.getCompoundOrEmpty("settings");
 
-        MutableText message = Text.literal("Team Settings for " + teamName + ":\n");
+        String horizontalLine = StringUtils.repeat("\\u2500", 64);
+
+        MutableText message = Text.literal("Team Settings for " + teamName + ":");
 
         for (String key : settings.getKeys()) {
             boolean value = settings.getBoolean(key).orElse(false);
 
-            Text status = Text.literal(value ? "[ENABLED]" : "[DISABLED]").formatted(value ? Formatting.GREEN : Formatting.RED);
+            Text status = Text.literal(value ? "☑" : "☒").formatted(value ? Formatting.GREEN : Formatting.RED);
             Text enableButton = Text.literal("[ENABLE]")
                     .styled(style -> style
                             .withColor(Formatting.GREEN)
@@ -347,10 +350,10 @@ public class datManager {
                     );
 
             // Add the line to the message
-            message = message
-                    .append(Text.literal("\n" + key + " "))
+            message = message.formatted(Formatting.YELLOW)
+                    .append(Text.literal("\n" + key + ": "))
                     .append(status)
-                    .append(Text.literal(" "))
+                    .append(Text.literal("\n "))
                     .append(enableButton)
                     .append(Text.literal(" "))
                     .append(disableButton);
