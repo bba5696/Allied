@@ -44,6 +44,7 @@ public class commands {
 
                                                         datManager.get().addTeam(teamName, teamTag, ownerUuid);
 
+                                                        teamUtils.rebuildTeams(server);
 
                                                         context.getSource().sendFeedback(
                                                                 () -> Text.of("Successfully created team " + teamName),
@@ -61,7 +62,6 @@ public class commands {
                                         ServerPlayerEntity player = context.getSource().getPlayer();
                                         assert player != null;
                                         UUID ownerUuid = player.getUuid();
-
                                         try {
                                             datManager.get().removeTeam(ownerUuid);
                                         } catch (IOException e) {
@@ -70,6 +70,8 @@ public class commands {
 
                                         ServerCommandSource source = context.getSource();
                                         MinecraftServer server = source.getServer();
+
+                                        teamUtils.rebuildTeams(server);
 
                                         context.getSource().sendFeedback(
                                                 () -> Text.of("Successfully Disbanded team"),
@@ -150,6 +152,7 @@ public class commands {
 
                                                 ServerCommandSource source = context.getSource();
                                                 MinecraftServer server = source.getServer();
+                                                teamUtils.rebuildTeams(server);
 
                                                 context.getSource().sendFeedback(
                                                         () -> Text.literal("Accepted join request from " + targetName),
@@ -264,6 +267,10 @@ public class commands {
                                                         } catch (IOException e) {
                                                             throw new RuntimeException(e);
                                                         }
+
+                                                        ServerCommandSource source = context.getSource();
+                                                        MinecraftServer server = source.getServer();
+                                                        teamUtils.rebuildTeams(server);
 
                                                         context.getSource().sendFeedback(
                                                                 () -> Text.literal("Setting '" + setting + "' updated to " + value),

@@ -24,6 +24,8 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.bba.allied.teamUtils.teamUtils.toTeamId;
+
 public class datManager {
     public static final String MOD_ID = "allied";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -90,7 +92,7 @@ public class datManager {
         return isOwnerOfATeam(uuid) || isMemberOfATeam(uuid);
     }
 
-    public void addTeam(String teamName, String teamTag, UUID ownerUUID) throws CommandSyntaxException {
+    public void addTeam(String teamName, String teamTag, UUID ownerUUID) throws CommandSyntaxException  {
         if (isInTeam(ownerUUID)) {
             throw new SimpleCommandExceptionType(
                     Text.of("You are already in a team!")
@@ -103,13 +105,25 @@ public class datManager {
             ).create();
         }
 
-        NbtCompound teams = data.getCompoundOrEmpty("teams"); // get the parent container
-        if (teams.contains(teamName.toLowerCase()) || teams.contains(teamTag.toLowerCase())) {
+        NbtCompound teams = data.getCompoundOrEmpty("teams"); // parent container
+
+        // First, check if internal team name exists
+        if (teams.contains(toTeamId(teamName))) {
             throw new SimpleCommandExceptionType(
-                    Text.of("Team already exists!")
+                    Text.of("A team with this internal name already exists!")
             ).create();
         }
 
+        // Then, check if the teamTag already exists
+        for (String existingTeamName : teams.getKeys()) {
+            NbtCompound existingTeam = teams.getCompoundOrEmpty(existingTeamName);
+            String existingTag = existingTeam.getString("teamTag").orElse("");
+            if (existingTag.equalsIgnoreCase(teamTag)) {
+                throw new SimpleCommandExceptionType(
+                        Text.of("A team with this tag already exists!")
+                ).create();
+            }
+        }
 
         NbtCompound team = createTeam(teamTag, ownerUUID);
         teams.put(teamName, team);
@@ -350,7 +364,7 @@ public class datManager {
 
         // Team tag (like short abbreviation)
         teamData.putString("teamTag", teamTag);
-        teamData.putString("tagColor", "White");
+        teamData.putString("tagColor", "BLUE");
 
         // Owner of the team (UUID stored as string)
         teamData.putString("owner", ownerUUID.toString());
