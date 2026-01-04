@@ -42,11 +42,6 @@ public class Allied implements ModInitializer {
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayerEntity player = handler.getPlayer();
-
-            // This code runs when a player joins the server
-            System.out.println(player.getName().getString() + " joined!");
-
-            // Example: refresh their scoreboard team
             runDelayed(server, () -> teamUtils.rebuildTeams(server), 3);
         });
     }

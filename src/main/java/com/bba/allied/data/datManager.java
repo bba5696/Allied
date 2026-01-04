@@ -1,7 +1,5 @@
 package com.bba.allied.data;
 
-import com.mojang.authlib.GameProfile;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.fabricmc.loader.api.FabricLoader;
@@ -10,11 +8,9 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.*;
 import net.minecraft.util.Formatting;
-import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.text.Normalizer;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -82,12 +77,12 @@ public class datManager {
 
             for (int i = 0; i < members.size(); i++) {
                 if (uuidStr.equalsIgnoreCase(members.getString(i).orElse(null))) {
-                    return true; // found in a team
+                    return true;
                 }
             }
         }
 
-        return false; // not a member of any team
+        return false;
     }
 
     public boolean isInTeam(UUID uuid) {
@@ -107,16 +102,14 @@ public class datManager {
             ).create();
         }
 
-        NbtCompound teams = data.getCompoundOrEmpty("teams"); // parent container
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
 
-        // First, check if internal team name exists
         if (teams.contains(toTeamId(teamName))) {
             throw new SimpleCommandExceptionType(
                     Text.of("A team with this internal name already exists!")
             ).create();
         }
 
-        // Then, check if the teamTag already exists
         for (String existingTeamName : teams.getKeys()) {
             NbtCompound existingTeam = teams.getCompoundOrEmpty(existingTeamName);
             String existingTag = existingTeam.getString("teamTag").orElse("");
@@ -157,6 +150,38 @@ public class datManager {
         throw new SimpleCommandExceptionType(Text.of("You don't own a team!")).create();
     }
 
+    public void leaveTeam(UUID ownerUUID) throws CommandSyntaxException, IOException {
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+        String ownerStr = ownerUUID.toString();
+
+        for (String teamName : teams.getKeys()) {
+            NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+
+            var members = teamData.getListOrEmpty("members");
+
+            for (int i = 0; i < members.size(); i++) {
+                String memberUuid = members.getString(i).orElse("");
+
+                if (ownerStr.equalsIgnoreCase(memberUuid)) {
+                    members.remove(i);
+                    save();
+                    return;
+                }
+            }
+        }
+
+        for (String teamName : teams.getKeys()) {
+            NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+            Optional<String> storedOwner = teamData.getString("owner");
+
+            if (ownerStr.equalsIgnoreCase(storedOwner.orElse(null))) {
+                throw new SimpleCommandExceptionType(Text.of("You can't leave your own team, do '/teams disband' instead!")).create();
+            }
+        }
+
+        throw new SimpleCommandExceptionType(Text.of("You are not in a team")).create();
+    }
+
     public void sendRequest(String targetTeamName, UUID playerUUID, MinecraftServer server) throws CommandSyntaxException {
         if (isInTeam(playerUUID)) {
             throw new SimpleCommandExceptionType(
@@ -173,13 +198,22 @@ public class datManager {
         }
 
         NbtCompound teamData = teams.getCompoundOrEmpty(targetTeamName);
-        NbtList requests = teamData.getListOrEmpty("joinRequests"); // 8 = TAG_String
 
+        boolean allowRequests = teamData
+                .getCompoundOrEmpty("settings")
+                .getBoolean("allowRequests")
+                .orElse(false);
+        if (!allowRequests) {
+            throw new SimpleCommandExceptionType(
+                    Text.of("This team is not accepting requests right now!")
+            ).create();
+        }
+
+        NbtList requests = teamData.getListOrEmpty("joinRequests");
         String playerUuidStr = playerUUID.toString();
 
-        // Check if UUID is already in the list
         for (int i = 0; i < requests.size(); i++) {
-            if (requests.get(i).getType() == 8) { // ensure it's a string
+            if (requests.get(i).getType() == 8) {
                 String existing = requests.getString(i).orElse(null);
                 assert existing != null;
                 if (existing.equalsIgnoreCase(playerUuidStr)) {
@@ -190,7 +224,7 @@ public class datManager {
             }
         }
 
-        requests.add(NbtString.of(playerUuidStr)); // add new string to NbtList
+        requests.add(NbtString.of(playerUuidStr));
         try {
             save();
         } catch (IOException e) {
@@ -231,7 +265,6 @@ public class datManager {
                     false
             );
         }
-
     }
 
     public void handleRequest(UUID ownerUUID, UUID requesterUUID, boolean accept) throws IOException, CommandSyntaxException {
@@ -239,15 +272,12 @@ public class datManager {
         String ownerStr = ownerUUID.toString();
 
         NbtCompound teamData = null;
-        String teamNameFound = null;
 
-        // Find the team owned by this UUID
         for (String teamName : teams.getKeys()) {
             NbtCompound team = teams.getCompoundOrEmpty(teamName);
             String storedOwner = team.getString("owner").orElseThrow();
             if (ownerStr.equalsIgnoreCase(storedOwner)) {
                 teamData = team;
-                teamNameFound = teamName;
                 break;
             }
         }
@@ -256,7 +286,6 @@ public class datManager {
             throw new SimpleCommandExceptionType(Text.of("You do not own a team!")).create();
         }
 
-        // Get the join requests list
         NbtList requests = teamData.getListOrEmpty("joinRequests"); // 8 = String type
         String requesterStr = requesterUUID.toString();
 
@@ -274,7 +303,6 @@ public class datManager {
             throw new SimpleCommandExceptionType(Text.of("No pending request from this player!")).create();
         }
 
-        // Accept the request
         if (accept) {
             NbtList members = teamData.getListOrEmpty("members");
             members.add(NbtString.of(requesterStr));
@@ -287,8 +315,6 @@ public class datManager {
         NbtCompound teams = data.getCompoundOrEmpty("teams");
         String teamName = null;
 
-        // Determine team
-        // Find team owned by player
         UUID playerUUID = player.getUuid();
         for (String key : teams.getKeys()) {
             NbtCompound teamData = teams.getCompoundOrEmpty(key);
@@ -306,13 +332,11 @@ public class datManager {
         NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
         NbtCompound settings = teamData.getCompoundOrEmpty("settings");
 
-        // Case 1: Show all settings if no specific key is provided
         if (settingKey == null || value == null) {
             showTeamSettings(player, teamName);
             return;
         }
 
-        // Case 2: Toggle / set a specific setting
         if (!settings.contains(settingKey)) {
             throw new SimpleCommandExceptionType(Text.of("Setting '" + settingKey + "' does not exist!")).create();
         }
@@ -346,8 +370,7 @@ public class datManager {
                             .withHoverEvent(new HoverEvent.ShowText(Text.literal("Disable " + key)))
                     );
 
-            // Add the line to the message
-            message = message.formatted(Formatting.YELLOW)
+            message.formatted(Formatting.YELLOW)
                     .append(Text.literal("\n" + key + ": "))
                     .append(status)
                     .append(Text.literal("\n "))
@@ -369,7 +392,6 @@ public class datManager {
         String foundTeamName = null;
         NbtCompound foundTeam = null;
 
-        // 🔍 find team by OWNER UUID
         for (String teamName : teams.getKeys()) {
             NbtCompound team = teams.getCompoundOrEmpty(teamName);
             if (team.getString("owner").orElse("").equals(playerUuid)) {
@@ -385,7 +407,6 @@ public class datManager {
             ).create();
         }
 
-        // 🚫 uniqueness checks
         if (field.equals("name") || field.equals("tag")) {
             for (String teamName : teams.getKeys()) {
                 NbtCompound team = teams.getCompoundOrEmpty(teamName);
@@ -418,9 +439,7 @@ public class datManager {
                 teams.remove(foundTeamName);
             }
 
-            case "tag" -> {
-                foundTeam.putString("teamTag", value); // preserve casing
-            }
+            case "tag" -> foundTeam.putString("teamTag", value);
 
             case "color" -> {
                 try {
@@ -443,33 +462,26 @@ public class datManager {
 
     }
 
-
     public static NbtCompound createTeam(String teamTag, UUID ownerUUID) {
         NbtCompound teamData = new NbtCompound();
 
-        // Team tag (like short abbreviation)
         teamData.putString("teamTag", teamTag);
-        teamData.putString("tagColor", "BLUE");
+        teamData.putString("tagColor", "WHITE");
 
-        // Owner of the team (UUID stored as string)
         teamData.putString("owner", ownerUUID.toString());
 
-        // Members list (empty by default)
         teamData.put("members", new NbtList());
 
         teamData.put("joinRequests", new NbtList());
         teamData.put("invites", new NbtList());
 
-        // Create a compound for settings
         NbtCompound settings = new NbtCompound();
 
-        // Add the booleans
         settings.putBoolean("friendlyFire", false);
         settings.putBoolean("highlight", false);
         settings.putBoolean("allowRequests", true);
         settings.putBoolean("chatUseTag", true);
 
-        // Put the compound into the team
         teamData.put("settings", settings);
 
         return teamData;

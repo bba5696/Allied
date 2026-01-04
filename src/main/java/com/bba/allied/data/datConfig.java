@@ -20,11 +20,11 @@ public class datConfig {
         Files.createDirectories(path.getParent());
         NbtCompound root = CreateDefault();
         if (!Files.exists(path)) {
-            NbtIo.write(root, path); // writes directly to file
+            NbtIo.write(root, path);
             datManager.init(root);
             LOGGER.info("Loaded Default .Dat File...");
         } else {
-            root = NbtIo.read(path); // reads directly from file
+            root = NbtIo.read(path);
             datManager.init(root);
             LOGGER.info("Loaded existing .Dat File...");
         }
@@ -33,14 +33,11 @@ public class datConfig {
     public static NbtCompound CreateDefault() {
         NbtCompound root = new NbtCompound();
 
-        // Version
         root.putString("version", "1.0.0");
 
-        // Teams
         NbtCompound teams = new NbtCompound();
         root.put("teams", teams);
 
-        // Settings
         NbtCompound settings = new NbtCompound();
         root.put("settings", settings);
 
@@ -49,6 +46,5 @@ public class datConfig {
 
         return root;
     }
-
 }
 
