@@ -12,6 +12,7 @@ import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -280,8 +281,54 @@ public class commands {
                                                     })
                                             )
                                     )
-                            ));
+                            )
+                            .then(CommandManager.literal("set")
+                                    .then(CommandManager.argument("field", StringArgumentType.word())
+                                            .suggests((ctx, builder) -> {
+                                                builder.suggest("name");
+                                                builder.suggest("tag");
+                                                builder.suggest("color");
+                                                return builder.buildFuture();
+                                            })
+                                            .then(CommandManager.argument("value", StringArgumentType.greedyString())
+                                                    .suggests((ctx, builder) -> {
+                                                        String field = StringArgumentType.getString(ctx, "field");
+                                                        if (field.equalsIgnoreCase("color")) {
+                                                            for (Formatting f : Formatting.values()) {
+                                                                if (f.isColor()) {
+                                                                    builder.suggest(f.getName());
+                                                                }
+                                                            }
+                                                        }
+                                                        return builder.buildFuture();
+                                                    })
+                                                    .executes(context -> {
+                                                        String field = StringArgumentType.getString(context, "field");
+                                                        String value = StringArgumentType.getString(context, "value");
+                                                        ServerPlayerEntity player = context.getSource().getPlayer();
 
+                                                        try {
+                                                            assert player != null;
+                                                            datManager.get().executeSet(player, field, value);
+                                                        } catch (IOException e) {
+                                                            throw new RuntimeException(e);
+                                                        }
+
+                                                        ServerCommandSource source = context.getSource();
+                                                        MinecraftServer server = source.getServer();
+                                                        teamUtils.rebuildTeams(server);
+
+                                                        context.getSource().sendFeedback(
+                                                                () -> Text.literal("Successfully updated  " + field),
+                                                                false
+                                                        );
+                                                        return 1;
+                                                    })
+                                            )
+                                    )
+                            )
+
+            );
 
         });
 

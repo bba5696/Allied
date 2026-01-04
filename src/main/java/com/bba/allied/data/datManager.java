@@ -1,6 +1,7 @@
 package com.bba.allied.data;
 
 import com.mojang.authlib.GameProfile;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.fabricmc.loader.api.FabricLoader;
@@ -9,14 +10,12 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.Text;
+import net.minecraft.text.*;
 import net.minecraft.util.Formatting;
 import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
-import net.minecraft.text.MutableText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -327,8 +326,6 @@ public class datManager {
         NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
         NbtCompound settings = teamData.getCompoundOrEmpty("settings");
 
-        String horizontalLine = StringUtils.repeat("\\u2500", 64);
-
         MutableText message = Text.literal("Team Settings for " + teamName + ":");
 
         for (String key : settings.getKeys()) {
@@ -361,6 +358,91 @@ public class datManager {
 
         player.sendMessage(message, false);
     }
+
+    public void executeSet(ServerPlayerEntity player, String field, String value) throws CommandSyntaxException, IOException {
+
+        String playerUuid = player.getUuid().toString();
+
+        NbtCompound data = datManager.get().getData();
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+
+        String foundTeamName = null;
+        NbtCompound foundTeam = null;
+
+        // 🔍 find team by OWNER UUID
+        for (String teamName : teams.getKeys()) {
+            NbtCompound team = teams.getCompoundOrEmpty(teamName);
+            if (team.getString("owner").orElse("").equals(playerUuid)) {
+                foundTeamName = teamName;
+                foundTeam = team;
+                break;
+            }
+        }
+
+        if (foundTeam == null) {
+            throw new SimpleCommandExceptionType(
+                    Text.literal("You do not own a team.")
+            ).create();
+        }
+
+        // 🚫 uniqueness checks
+        if (field.equals("name") || field.equals("tag")) {
+            for (String teamName : teams.getKeys()) {
+                NbtCompound team = teams.getCompoundOrEmpty(teamName);
+                if (team == foundTeam) continue;
+
+                if (field.equals("name")) {
+                    if (teamName.equalsIgnoreCase(value)) {
+                        throw new SimpleCommandExceptionType(
+                                Text.literal("A team with that name already exists.")
+                        ).create();
+                    }
+                }
+
+                if (field.equals("tag")) {
+                    String existingTag = team.getString("teamTag").orElse("");
+                    if (existingTag.equalsIgnoreCase(value)) {
+                        throw new SimpleCommandExceptionType(
+                                Text.literal("A team with that tag already exists.")
+                        ).create();
+                    }
+                }
+            }
+        }
+
+        // ✅ apply change
+        switch (field) {
+
+            case "name" -> {
+                teams.put(value, foundTeam);
+                teams.remove(foundTeamName);
+            }
+
+            case "tag" -> {
+                foundTeam.putString("teamTag", value); // preserve casing
+            }
+
+            case "color" -> {
+                try {
+                    Formatting f = Formatting.valueOf(value.toUpperCase());
+                    if (!f.isColor()) throw new IllegalArgumentException();
+                    foundTeam.putString("tagColor", f.getName());
+                } catch (Exception e) {
+                    throw new SimpleCommandExceptionType(
+                            Text.literal("Invalid color.")
+                    ).create();
+                }
+            }
+
+            default -> throw new SimpleCommandExceptionType(
+                    Text.literal("Invalid field. Use name, tag, or color.")
+            ).create();
+        }
+
+        datManager.get().save();
+
+    }
+
 
     public static NbtCompound createTeam(String teamTag, UUID ownerUUID) {
         NbtCompound teamData = new NbtCompound();
