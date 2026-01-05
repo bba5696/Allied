@@ -54,9 +54,7 @@ public class teamUtils {
             String rawText = signedMessage.getContent().getString();
             Text formatted = formatTeamChat(player, rawText);
 
-            player.getEntityWorld().getPlayers().forEach(p -> {
-                p.sendMessage(formatted, false);
-            });
+            player.getEntityWorld().getPlayers().forEach(p -> p.sendMessage(formatted, false));
 
             LOGGER.info("{}", formatted.getString());
 
