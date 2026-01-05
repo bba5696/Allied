@@ -28,7 +28,7 @@ public class commands {
 
     public static void registerCommands() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
-                CommandManager.literal("teams")
+                CommandManager.literal("allied")
 
                         .then(CommandManager.literal("create")
                                 .then(CommandManager.argument("name", StringArgumentType.string())

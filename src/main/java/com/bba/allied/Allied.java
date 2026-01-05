@@ -1,13 +1,13 @@
 package com.bba.allied;
 
 import com.bba.allied.commands.commands;
+import com.bba.allied.commands.adminCommands;
 import com.bba.allied.data.datConfig;
 import com.bba.allied.teamUtils.teamUtils;
 import net.fabricmc.api.ModInitializer;
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,11 +38,9 @@ public class Allied implements ModInitializer {
 		LOGGER.info("Allied Mod Data Loaded!");
 
         commands.registerCommands();
+        adminCommands.registerCommands();
         teamUtils.register();
 
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            ServerPlayerEntity player = handler.getPlayer();
-            runDelayed(server, () -> teamUtils.rebuildTeams(server), 3);
-        });
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> runDelayed(server, () -> teamUtils.rebuildTeams(server), 3));
     }
 }
