@@ -7,6 +7,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -540,6 +541,65 @@ public class commands {
                                                     return 1;
                                                 })
                                         )
+                                )
+                        )
+
+                        .then(CommandManager.literal("kick")
+                                .then(CommandManager.argument("playerName", StringArgumentType.word())
+                                        .suggests((context, builder) -> {
+                                            ServerPlayerEntity owner = context.getSource().getPlayer();
+                                            if (owner == null) return builder.buildFuture();
+
+                                            NbtCompound teams = datManager.get().getData().getCompoundOrEmpty("teams");
+                                            String ownerStr = owner.getUuid().toString();
+                                            NbtCompound teamData = null;
+
+                                            for (String tName : teams.getKeys()) {
+                                                NbtCompound t = teams.getCompoundOrEmpty(tName);
+                                                if (ownerStr.equals(t.getString("owner").orElse(""))) {
+                                                    teamData = t;
+                                                    break;
+                                                }
+                                            }
+
+                                            if (teamData == null) return builder.buildFuture();
+                                            MinecraftServer server = context.getSource().getServer();
+                                            NbtList members = teamData.getListOrEmpty("members");
+                                            for (int i = 0; i < members.size(); i++) {
+                                                String memberUUID = members.getString(i).orElse("");
+                                                if (!ownerStr.equals(memberUUID)) {
+                                                    ServerPlayerEntity member = server.getPlayerManager().getPlayer(UUID.fromString(memberUUID));
+
+                                                    if (member != null) builder.suggest(member.getGameProfile().name());
+                                                }
+                                            }
+
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(context -> {
+                                            ServerPlayerEntity owner = context.getSource().getPlayer();
+                                            if (owner == null) return 0;
+
+                                            String targetName = StringArgumentType.getString(context, "playerName");
+                                            MinecraftServer server = context.getSource().getServer();
+                                            ServerPlayerEntity target = server.getPlayerManager().getPlayer(targetName);
+                                            if (target == null) {
+                                                context.getSource().sendError(Text.literal("Player not found or not online!"));
+                                                return 0;
+                                            }
+
+                                            try {
+                                                datManager.get().kickMember(owner, target);
+                                            } catch (IOException e) {
+                                                context.getSource().sendError(Text.literal("Failed to save team data."));
+                                                e.printStackTrace();
+                                                return 0;
+                                            }
+
+                                            teamUtils.rebuildTeams(server);
+
+                                            return 1;
+                                        })
                                 )
                         )
 

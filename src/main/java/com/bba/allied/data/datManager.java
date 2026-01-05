@@ -1,5 +1,6 @@
 package com.bba.allied.data;
 
+import com.bba.allied.teamUtils.teamUtils;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.fabricmc.loader.api.FabricLoader;
@@ -15,11 +16,11 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 
+import static com.bba.allied.data.datConfig.CreateDefault;
 import static com.bba.allied.teamUtils.teamUtils.toTeamId;
 
 public class datManager {
@@ -28,7 +29,7 @@ public class datManager {
     Path path = FabricLoader.getInstance().getConfigDir().resolve("allied").resolve("teams.dat");
 
     private static datManager INSTANCE;
-    private final NbtCompound data;
+    private NbtCompound data;
 
     private datManager(NbtCompound data) {
         this.data = data;
@@ -36,6 +37,16 @@ public class datManager {
 
     public static void init(NbtCompound data) {
         INSTANCE = new datManager(data);
+    }
+
+    public void resetData(MinecraftServer server) throws IOException {
+        data = CreateDefault();
+        save();
+        datConfig.InitialiseDatFolder();
+
+        LOGGER.info("ALLIED MOD DATA HAS BEEN RESET!");
+
+        teamUtils.rebuildTeams(server);
     }
 
     public static datManager get() {
@@ -181,6 +192,18 @@ public class datManager {
         throw new SimpleCommandExceptionType(Text.of("You are not in a team")).create();
     }
 
+    public int getTeamMemberCount(String teamName) {
+        NbtCompound teams = datManager.get().getData().getCompoundOrEmpty("teams");
+        NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+
+        if (teamData == null || teamData.isEmpty()) {
+            return 0; // team doesn't exist
+        }
+
+        NbtList members = teamData.getListOrEmpty("members");
+        return members.size();
+    }
+
     public void sendRequest(String targetTeamName, UUID playerUUID, MinecraftServer server) throws CommandSyntaxException {
         if (isInTeam(playerUUID)) {
             throw new SimpleCommandExceptionType(
@@ -197,6 +220,15 @@ public class datManager {
         }
 
         NbtCompound teamData = teams.getCompoundOrEmpty(targetTeamName);
+
+        int count = getTeamMemberCount(targetTeamName);
+        int memberCap = data.getCompoundOrEmpty("settings").getInt("maxMembers", 5);
+
+        if (count >= memberCap) {
+            throw new SimpleCommandExceptionType(
+                    Text.of("This team is full!")
+            ).create();
+        }
 
         boolean allowRequests = teamData
                 .getCompoundOrEmpty("settings")
@@ -335,6 +367,15 @@ public class datManager {
                 teamData = t;
                 break;
             }
+        }
+
+        int count = getTeamMemberCount(teamName);
+        int memberCap = data.getCompoundOrEmpty("settings").getInt("maxMembers", 5);
+
+        if (count >= memberCap) {
+            throw new SimpleCommandExceptionType(
+                    Text.of("Your team is currently full, please kick someone!")
+            ).create();
         }
 
         if (teamData == null) {
@@ -590,6 +631,113 @@ public class datManager {
 
         datManager.get().save();
 
+    }
+
+    public void kickMember(ServerPlayerEntity owner, ServerPlayerEntity target) throws IOException {
+        if (owner == null || target == null) return;
+
+        NbtCompound teams = datManager.get().getData().getCompoundOrEmpty("teams");
+        String ownerStr = owner.getUuid().toString();
+        String targetStr = target.getUuid().toString();
+
+        NbtCompound teamData = null;
+        for (String tName : teams.getKeys()) {
+            NbtCompound t = teams.getCompoundOrEmpty(tName);
+            if (ownerStr.equals(t.getString("owner").orElse(""))) {
+                teamData = t;
+                break;
+            }
+        }
+
+        if (teamData == null) {
+            owner.sendMessage(Text.literal("You do not own a team!").formatted(Formatting.RED), false);
+            return;
+        }
+
+        NbtList members = teamData.getListOrEmpty("members");
+        boolean removed = false;
+        for (int i = 0; i < members.size(); i++) {
+            if (targetStr.equals(members.getString(i).orElse(""))) {
+                members.remove(i);
+                removed = true;
+                break;
+            }
+        }
+
+        if (!removed) {
+            owner.sendMessage(Text.literal(target.getGameProfile().name() + " is not in your team!")
+                    .formatted(Formatting.RED), false);
+            return;
+        }
+
+        datManager.get().save();
+        owner.sendMessage(
+                Text.literal("Removed ")
+                        .append(Text.literal(target.getGameProfile().name()).formatted(Formatting.RED))
+                        .append(Text.literal(" from your team.")),
+                false
+        );
+
+    }
+
+    public MutableText getTeamInfo(MinecraftServer server, String teamName) {
+        NbtCompound teams = datManager.get().getData().getCompoundOrEmpty("teams");
+        NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+
+        if (teamData == null || teamData.isEmpty()) {
+            return Text.literal("Team not found!").formatted(Formatting.RED);
+        }
+
+        MutableText info = Text.literal("Team Name: ").formatted(Formatting.GOLD);
+        info.append(Text.literal(teamName).formatted(Formatting.YELLOW)).append(Text.literal("\n"));
+
+        // Team tag
+        String tag = teamData.getString("teamTag").orElse("No Tag");
+        info.append(Text.literal("Team Tag: ").formatted(Formatting.GOLD))
+                .append(Text.literal(tag).formatted(Formatting.AQUA))
+                .append(Text.literal("\n"));
+
+        // Owner
+        String ownerUUIDStr = teamData.getString("owner").orElse("");
+        ServerPlayerEntity ownerPlayer = null;
+        try {
+            ownerPlayer = server.getPlayerManager().getPlayer(UUID.fromString(ownerUUIDStr));
+        } catch (IllegalArgumentException ignored) {}
+        MutableText ownerText = (ownerPlayer != null)
+                ? Text.literal(ownerPlayer.getGameProfile().name()).formatted(Formatting.GREEN)
+                : Text.literal("Offline").formatted(Formatting.RED);
+
+        info.append(Text.literal("Owner: ").formatted(Formatting.GOLD)).append(ownerText).append(Text.literal("\n"));
+
+        // Members
+        NbtList members = teamData.getListOrEmpty("members");
+        int offlineCount = 0;
+        MutableText membersText = Text.literal("");
+
+        for (int i = 0; i < members.size(); i++) {
+            String memberUUIDStr = members.getString(i).orElse("");
+            ServerPlayerEntity member = null;
+            try {
+                member = server.getPlayerManager().getPlayer(UUID.fromString(memberUUIDStr));
+            } catch (IllegalArgumentException ignored) {}
+
+            if (i > 0) membersText.append(Text.literal(", "));
+
+            if (member != null) {
+                membersText.append(Text.literal(member.getGameProfile().name()).formatted(Formatting.GREEN));
+            } else {
+                offlineCount++;
+            }
+        }
+
+        if (offlineCount > 0) {
+            if (!membersText.getString().isEmpty()) membersText.append(Text.literal(", "));
+            membersText.append(Text.literal("(" + offlineCount + ") Offline").formatted(Formatting.RED));
+        }
+
+        info.append(Text.literal("Members: ").formatted(Formatting.GOLD)).append(membersText);
+
+        return info;
     }
 
     public static NbtCompound createTeam(String teamTag, UUID ownerUUID) {
