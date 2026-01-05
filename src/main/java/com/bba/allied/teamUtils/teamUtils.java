@@ -30,7 +30,7 @@ public class teamUtils {
 
     public static void refreshTabForPlayer(ServerPlayerEntity player) {
         MinecraftServer server = player.getEntityWorld().getServer();
-        if (server == null) return; // safety check
+        if (server == null) return;
 
         PlayerListS2CPacket packet = new PlayerListS2CPacket(
                 PlayerListS2CPacket.Action.UPDATE_DISPLAY_NAME,
@@ -51,13 +51,11 @@ public class teamUtils {
 
     public static void register() {
         ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((signedMessage, player, params) -> {
-            // Convert original message to Text
-            String rawText = signedMessage.getContent().getString(); // raw string only
+            String rawText = signedMessage.getContent().getString();
             Text formatted = formatTeamChat(player, rawText);
 
-            // Broadcast manually
             player.getEntityWorld().getPlayers().forEach(p -> {
-                p.sendMessage(formatted, false); // false = not system message
+                p.sendMessage(formatted, false);
             });
 
             LOGGER.info("{}", formatted.getString());
@@ -75,12 +73,10 @@ public class teamUtils {
         for (String teamName : teams.getKeys()) {
             NbtCompound team = teams.getCompoundOrEmpty(teamName);
 
-            // owner
             if (team.getString("owner").orElse("").equals(playerUuid)) {
                 return buildChatMessage(player, originalMessage, team, teamName);
             }
 
-            // members
             var members = team.getListOrEmpty("members");
             for (int i = 0; i < members.size(); i++) {
                 if (members.getString(i).orElse("").equals(playerUuid)) {
@@ -88,7 +84,6 @@ public class teamUtils {
                 }
             }
         }
-        // not in a team → vanilla format
         return Text.literal("<")
                 .append(player.getDisplayName())
                 .append("> ")
@@ -311,7 +306,7 @@ public class teamUtils {
         return teamData
                 .getCompoundOrEmpty("settings")
                 .getBoolean("friendlyFire")
-                .orElse(false); // false cancels damage
+                .orElse(false);
     }
 
     private static String findPlayersTeam(NbtCompound teams, String uuid) {
@@ -359,7 +354,7 @@ public class teamUtils {
             }
 
             for (ServerPlayerEntity teammate : server.getPlayerManager().getPlayerList()) {
-                if (teammate == player) continue; // skip self
+                if (teammate == player) continue;
 
                 NbtCompound teammateTeam = uuidToTeam.get(teammate.getUuid().toString());
 

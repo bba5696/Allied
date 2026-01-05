@@ -15,11 +15,10 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
+
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static com.bba.allied.teamUtils.teamUtils.toTeamId;
 
@@ -73,7 +72,7 @@ public class datManager {
 
         for (String teamName : teams.getKeys()) {
             NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
-            NbtList members = teamData.getListOrEmpty("members"); // 8 = TAG_String
+            NbtList members = teamData.getListOrEmpty("members");
 
             for (int i = 0; i < members.size(); i++) {
                 if (uuidStr.equalsIgnoreCase(members.getString(i).orElse(null))) {
@@ -286,7 +285,7 @@ public class datManager {
             throw new SimpleCommandExceptionType(Text.of("You do not own a team!")).create();
         }
 
-        NbtList requests = teamData.getListOrEmpty("joinRequests"); // 8 = String type
+        NbtList requests = teamData.getListOrEmpty("joinRequests");
         String requesterStr = requesterUUID.toString();
 
         boolean found = false;
@@ -309,6 +308,138 @@ public class datManager {
         }
 
         save();
+    }
+
+    public void sendInvite(UUID ownerUUID, UUID targetUUID, MinecraftServer server)
+            throws CommandSyntaxException, IOException {
+
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+        String ownerStr = ownerUUID.toString();
+
+        ServerPlayerEntity targetPlayer = server.getPlayerManager().getPlayer(targetUUID);
+        if (targetPlayer == null) {
+            throw new SimpleCommandExceptionType(Text.literal("Target player is not online!")).create();
+        }
+
+        if (isInTeam(targetUUID)) {
+            throw new SimpleCommandExceptionType(Text.literal("This player is already in a team!")).create();
+        }
+
+        String teamName = null;
+        NbtCompound teamData = null;
+
+        for (String name : teams.getKeys()) {
+            NbtCompound t = teams.getCompoundOrEmpty(name);
+            if (ownerStr.equals(t.getString("owner").orElse(""))) {
+                teamName = name;
+                teamData = t;
+                break;
+            }
+        }
+
+        if (teamData == null) {
+            throw new SimpleCommandExceptionType(Text.literal("You do not own a team!")).create();
+        }
+
+        NbtList invites = teamData.getListOrEmpty("invites");
+        String targetStr = targetUUID.toString();
+
+        for (int i = 0; i < invites.size(); i++) {
+            if (targetStr.equals(invites.getString(i).orElse(""))) {
+                throw new SimpleCommandExceptionType(Text.literal("Player already invited!")).create();
+            }
+        }
+
+        invites.add(NbtString.of(targetStr));
+        save();
+
+        String finalTeamName = teamName;
+        Text accept = Text.literal("[ACCEPT]")
+                .formatted(Formatting.GREEN)
+                .styled(s -> s.withClickEvent(
+                        new ClickEvent.RunCommand("/allied invAccept " + finalTeamName)));
+        Text deny = Text.literal("[DENY]")
+                .formatted(Formatting.RED)
+                .styled(s -> s.withClickEvent(
+                        new ClickEvent.RunCommand("/allied invDeny " + finalTeamName)));
+
+        targetPlayer.sendMessage(
+                Text.literal("You were invited to join team ")
+                        .append(Text.literal(teamName).formatted(Formatting.YELLOW))
+                        .append(Text.literal("\n"))
+                        .append(accept).append(Text.literal(" ")).append(deny),
+                false
+        );
+    }
+
+    public void handleInvite(UUID playerUUID, String teamName, boolean accept)
+            throws IOException, CommandSyntaxException {
+
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+        String playerStr = playerUUID.toString();
+
+        NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+        if (teamData.isEmpty()) {
+            throw new SimpleCommandExceptionType(Text.literal("Team does not exist!")).create();
+        }
+
+        NbtList invites = teamData.getListOrEmpty("invites");
+        boolean found = false;
+
+        for (int i = 0; i < invites.size(); i++) {
+            if (playerStr.equals(invites.getString(i).orElse(""))) {
+                invites.remove(i);
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            throw new SimpleCommandExceptionType(Text.literal("You do not have an invite to this team!")).create();
+        }
+
+        if (accept) {
+            if (isInTeam(playerUUID)) {
+                throw new SimpleCommandExceptionType(Text.literal("You are already in a team!")).create();
+            }
+
+            NbtList members = teamData.getListOrEmpty("members");
+            members.add(NbtString.of(playerStr));
+
+            for (String name : teams.getKeys()) {
+                NbtCompound t = teams.getCompoundOrEmpty(name);
+                NbtList otherInvites = t.getListOrEmpty("invites");
+
+                for (int i = otherInvites.size() - 1; i >= 0; i--) {
+                    if (playerStr.equals(otherInvites.getString(i).orElse(""))) {
+                        otherInvites.remove(i);
+                    }
+                }
+            }
+        }
+
+        save();
+    }
+
+    public List<String> getInvitedTeams(UUID playerUUID) {
+        List<String> result = new ArrayList<>();
+
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+        String playerStr = playerUUID.toString();
+
+        for (String teamName : teams.getKeys()) {
+            NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+            NbtList invites = teamData.getListOrEmpty("invites");
+
+            for (int i = 0; i < invites.size(); i++) {
+                if (playerStr.equals(invites.getString(i).orElse(""))) {
+                    result.add(teamName);
+                    break;
+                }
+            }
+        }
+
+        return result;
     }
 
     public void handleSettings(ServerPlayerEntity player, @Nullable String settingKey, @Nullable Boolean value) throws CommandSyntaxException, IOException {
@@ -431,7 +562,6 @@ public class datManager {
             }
         }
 
-        // ✅ apply change
         switch (field) {
 
             case "name" -> {

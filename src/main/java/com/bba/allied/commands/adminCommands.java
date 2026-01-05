@@ -16,7 +16,7 @@ public class adminCommands {
     public static void registerCommands() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
         CommandManager.literal("alliedAdmin")
-                .requires(CommandManager.requirePermissionLevel(CommandManager.ADMINS_CHECK)) // only ops can use
+                .requires(CommandManager.requirePermissionLevel(CommandManager.ADMINS_CHECK))
                 .then(CommandManager.literal("memberCap")
                         .then(CommandManager.argument("value", IntegerArgumentType.integer(1))
                                 .executes(context -> {
@@ -29,7 +29,6 @@ public class adminCommands {
 
                                     settings.putInt("maxMembers", newCap);
 
-                                    // save changes
                                     try {
                                         datManager.get().save();
                                     } catch (IOException e) {

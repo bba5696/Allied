@@ -41,6 +41,7 @@ public class Allied implements ModInitializer {
         adminCommands.registerCommands();
         teamUtils.register();
 
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> runDelayed(server, () -> teamUtils.rebuildTeams(server), 3));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server)
+                -> runDelayed(server, () -> teamUtils.rebuildTeams(server), 3));
     }
 }

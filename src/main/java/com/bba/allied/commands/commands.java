@@ -32,8 +32,7 @@ public class commands {
 
                         .then(CommandManager.literal("create")
                                 .then(CommandManager.argument("name", StringArgumentType.string())
-                                        .then(CommandManager.argument("tag", StringArgumentType.string())
-                                                .executes(context -> {
+                                        .then(CommandManager.argument("tag", StringArgumentType.string()).executes(context -> {
                                                     String teamName = StringArgumentType.getString(context, "name");
                                                     String teamTag = StringArgumentType.getString(context, "tag");
                                                     ServerPlayerEntity player = context.getSource().getPlayer();
@@ -210,6 +209,126 @@ public class commands {
 
                                             context.getSource().sendFeedback(
                                                     () -> Text.literal("Denied join request from " + targetName),
+                                                    false
+                                            );
+                                            return 1;
+                                        })
+                                )
+                        )
+
+                        .then(CommandManager.literal("invite")
+                                .then(CommandManager.argument("playerName", StringArgumentType.word())
+                                        .executes(context -> {
+                                            ServerPlayerEntity owner = context.getSource().getPlayer();
+                                            ServerPlayerEntity target = context.getSource()
+                                                    .getServer()
+                                                    .getPlayerManager()
+                                                    .getPlayer(StringArgumentType.getString(context, "playerName"));
+
+                                            if (target == null) {
+                                                context.getSource().sendError(Text.literal("Player not online!"));
+                                                return 0;
+                                            }
+
+                                            try {
+                                                datManager.get().sendInvite(
+                                                        owner.getUuid(),
+                                                        target.getUuid(),
+                                                        context.getSource().getServer()
+                                                );
+                                            } catch (Exception e) {
+                                                e.printStackTrace();
+                                                return 0;
+                                            }
+
+                                            context.getSource().sendFeedback(
+                                                    () -> Text.literal("Invite sent."),
+                                                    false
+                                            );
+                                            return 1;
+                                        })
+                                )
+                        )
+
+                        .then(CommandManager.literal("invAccept")
+                                .then(CommandManager.argument("teamName", StringArgumentType.string())
+                                        .suggests((context, builder) -> {
+                                            ServerPlayerEntity player = context.getSource().getPlayer();
+                                            if (player != null) {
+                                                datManager.get()
+                                                        .getInvitedTeams(player.getUuid())
+                                                        .forEach(builder::suggest);
+                                            }
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(context -> {
+                                            ServerPlayerEntity player = context.getSource().getPlayer();
+                                            if (player == null) return 0;
+
+                                            String teamName = StringArgumentType.getString(context, "teamName");
+
+                                            try {
+                                                datManager.get().handleInvite(
+                                                        player.getUuid(),
+                                                        teamName,
+                                                        true
+                                                );
+                                            } catch (CommandSyntaxException e) {
+                                                context.getSource().sendError((Text) e.getRawMessage());
+                                                return 0;
+                                            } catch (IOException e) {
+                                                context.getSource().sendError(Text.literal("Failed to save team data."));
+                                                e.printStackTrace();
+                                                return 0;
+                                            }
+
+                                            teamUtils.rebuildTeams(context.getSource().getServer());
+
+                                            context.getSource().sendFeedback(
+                                                    () -> Text.literal("Joined team ")
+                                                            .append(Text.literal(teamName).formatted(Formatting.YELLOW)),
+                                                    false
+                                            );
+                                            return 1;
+                                        })
+                                )
+                        )
+
+                        .then(CommandManager.literal("invDeny")
+                                .then(CommandManager.argument("teamName", StringArgumentType.string())
+                                        .suggests((context, builder) -> {
+                                            ServerPlayerEntity player = context.getSource().getPlayer();
+                                            if (player != null) {
+                                                datManager.get()
+                                                        .getInvitedTeams(player.getUuid())
+                                                        .forEach(builder::suggest);
+                                            }
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(context -> {
+                                            ServerPlayerEntity player = context.getSource().getPlayer();
+                                            if (player == null) return 0;
+
+                                            String teamName = StringArgumentType.getString(context, "teamName");
+
+                                            try {
+                                                datManager.get().handleInvite(
+                                                        player.getUuid(),
+                                                        teamName,
+                                                        false
+                                                );
+                                            } catch (CommandSyntaxException e) {
+                                                context.getSource().sendError((Text) e.getRawMessage());
+                                                return 0;
+                                            } catch (IOException e) {
+                                                context.getSource().sendError(Text.literal("Failed to save team data."));
+                                                e.printStackTrace();
+                                                return 0;
+                                            }
+
+                                            context.getSource().sendFeedback(
+                                                    () -> Text.literal("Denied invite from ")
+                                                            .append(Text.literal(teamName).formatted(Formatting.YELLOW)),
                                                     false
                                             );
                                             return 1;
