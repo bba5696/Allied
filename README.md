@@ -1,5 +1,4 @@
-
-<a href="[https://github.com/bba5696/Allied](https://modrinth.com/mod/fabric-api)" target="_blank">
+<a href="https://modrinth.com/mod/fabric-api" target="_blank">
   <img 
     src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/requires/fabric-api_vector.svg" 
     alt="fabric-api" 
