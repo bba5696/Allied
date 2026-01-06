@@ -531,14 +531,14 @@ public class datManager {
             Text enableButton = Text.literal("[ENABLE]")
                     .styled(style -> style
                             .withColor(Formatting.GREEN)
-                            .withClickEvent(new ClickEvent.RunCommand("/teams settings" + " " + key + " " + true))
+                            .withClickEvent(new ClickEvent.RunCommand("/allied settings" + " " + key + " " + true))
                             .withHoverEvent(new HoverEvent.ShowText(Text.literal("Enable " + key)))
                     );
 
             Text disableButton = Text.literal("[DISABLE]")
                     .styled(style -> style
                             .withColor(Formatting.RED)
-                            .withClickEvent(new ClickEvent.RunCommand("/teams settings" + " " + key + " " + false))
+                            .withClickEvent(new ClickEvent.RunCommand("/allied settings" + " " + key + " " + false))
                             .withHoverEvent(new HoverEvent.ShowText(Text.literal("Disable " + key)))
                     );
 
