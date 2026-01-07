@@ -1,6 +1,7 @@
 package com.bba.allied.commands;
 
 import com.bba.allied.data.datManager;
+import com.bba.allied.teamUtils.teamChatManager;
 import com.bba.allied.teamUtils.teamUtils;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -99,6 +100,25 @@ public class commands {
 
                                     context.getSource().sendFeedback(
                                             () -> Text.of("Successfully left team"),
+                                            false
+                                    );
+                                    return 1;
+                                })
+                        )
+
+                        .then(CommandManager.literal("tm")
+                                .executes(context -> {
+                                    ServerPlayerEntity player = context.getSource().getPlayer();
+                                    UUID uuid = player.getUuid();
+
+                                    if (!datManager.get().isInTeam(uuid)) {
+                                        context.getSource().sendError(Text.literal("You are not in a team!"));
+                                        return 0;
+                                    }
+
+                                    boolean enabled = teamChatManager.toggle(uuid);
+                                    context.getSource().sendFeedback(
+                                            () -> Text.literal(enabled ? "Team Chat Enabled" : "Team Chat Disabled"),
                                             false
                                     );
                                     return 1;

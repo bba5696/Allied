@@ -99,6 +99,28 @@ public class datManager {
         return isOwnerOfATeam(uuid) || isMemberOfATeam(uuid);
     }
 
+    public String getTeam(UUID playerUuid) {
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+        String playerId = playerUuid.toString();
+
+        for (String teamName : teams.getKeys()) {
+            NbtCompound team = teams.getCompoundOrEmpty(teamName);
+
+            if (team.getString("owner").orElse("").equalsIgnoreCase(playerId)) {
+                return teamName;
+            }
+
+            var members = team.getListOrEmpty("members");
+            for (int i = 0; i < members.size(); i++) {
+                if (members.getString(i).orElse("").equalsIgnoreCase(playerId)) {
+                    return teamName;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public void addTeam(String teamName, String teamTag, UUID ownerUUID) throws CommandSyntaxException  {
         if (isInTeam(ownerUUID)) {
             throw new SimpleCommandExceptionType(
@@ -185,7 +207,7 @@ public class datManager {
             Optional<String> storedOwner = teamData.getString("owner");
 
             if (ownerStr.equalsIgnoreCase(storedOwner.orElse(null))) {
-                throw new SimpleCommandExceptionType(Text.of("You can't leave your own team, do '/teams disband' instead!")).create();
+                throw new SimpleCommandExceptionType(Text.of("You can't leave your own team, do '/allied  disband' instead!")).create();
             }
         }
 
@@ -197,7 +219,7 @@ public class datManager {
         NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
 
         if (teamData == null || teamData.isEmpty()) {
-            return 0; // team doesn't exist
+            return 0;
         }
 
         NbtList members = teamData.getListOrEmpty("members");
@@ -275,14 +297,14 @@ public class datManager {
             Text accept = Text.literal("[ACCEPT]")
                     .formatted(Formatting.GREEN)
                     .styled(style -> style
-                            .withClickEvent(new ClickEvent.RunCommand("/teams accept"+ " " + playerUUID))
+                            .withClickEvent(new ClickEvent.RunCommand("/allied accept"+ " " + playerUUID))
                             .withHoverEvent(new HoverEvent.ShowText(Text.literal("Accept join request")))
                     );
 
             Text deny = Text.literal("[DENY]")
                     .formatted(Formatting.RED)
                     .styled(style -> style
-                            .withClickEvent(new ClickEvent.RunCommand("/teams deny" + " " + playerUUID))
+                            .withClickEvent(new ClickEvent.RunCommand("/allied deny" + " " + playerUUID))
                             .withHoverEvent(new HoverEvent.ShowText(Text.literal("Deny join request")))
                     );
 
@@ -691,13 +713,11 @@ public class datManager {
         MutableText info = Text.literal("Team Name: ").formatted(Formatting.GOLD);
         info.append(Text.literal(teamName).formatted(Formatting.YELLOW)).append(Text.literal("\n"));
 
-        // Team tag
         String tag = teamData.getString("teamTag").orElse("No Tag");
         info.append(Text.literal("Team Tag: ").formatted(Formatting.GOLD))
                 .append(Text.literal(tag).formatted(Formatting.AQUA))
                 .append(Text.literal("\n"));
 
-        // Owner
         String ownerUUIDStr = teamData.getString("owner").orElse("");
         ServerPlayerEntity ownerPlayer = null;
         try {
@@ -709,7 +729,6 @@ public class datManager {
 
         info.append(Text.literal("Owner: ").formatted(Formatting.GOLD)).append(ownerText).append(Text.literal("\n"));
 
-        // Members
         NbtList members = teamData.getListOrEmpty("members");
         int offlineCount = 0;
         MutableText membersText = Text.literal("");

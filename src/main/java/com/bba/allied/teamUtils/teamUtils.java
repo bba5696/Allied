@@ -18,9 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import net.minecraft.network.packet.s2c.play.PlayerListS2CPacket;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class teamUtils {
     static NbtCompound data = datManager.get().getData();
@@ -54,12 +52,43 @@ public class teamUtils {
             String rawText = signedMessage.getContent().getString();
             Text formatted = formatTeamChat(player, rawText);
 
-            player.getEntityWorld().getPlayers().forEach(p -> p.sendMessage(formatted, false));
+            UUID uuid = player.getUuid();
 
-            LOGGER.info("{}", formatted.getString());
+            if (teamChatManager.isEnabled(uuid)) {
+                String teamName = datManager.get().getTeam(uuid);
+
+                if (teamName != null) {
+                    NbtCompound teamData = datManager.get().getData()
+                            .getCompoundOrEmpty("teams")
+                            .getCompoundOrEmpty(teamName);
+
+                    teamData.getString("owner").ifPresent(ownerStr -> {
+                        try {
+                            ServerPlayerEntity owner = player.getEntityWorld().getServer().getPlayerManager()
+                                    .getPlayer(UUID.fromString(ownerStr));
+                            if (owner != null) owner.sendMessage(formatted, false);
+                        } catch (Exception ignored) {}
+                    });
+
+                    var members = teamData.getListOrEmpty("members");
+                    for (int i = 0; i < members.size(); i++) {
+                        members.getString(i).ifPresent(memberStr -> {
+                            try {
+                                ServerPlayerEntity member = player.getEntityWorld().getServer().getPlayerManager()
+                                        .getPlayer(UUID.fromString(memberStr));
+                                if (member != null) member.sendMessage(formatted, false);
+                            } catch (Exception ignored) {}
+                        });
+                    }
+                }
+            } else {
+                player.getEntityWorld().getPlayers().forEach(p -> p.sendMessage(formatted, false));
+                LOGGER.info("{}", formatted.getString());
+            }
 
             return false;
         });
+
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> teamUtils.handleFriendlyFire(entity, source));
         ServerTickEvents.END_WORLD_TICK.register(world -> updateHighlight(world.getServer()));
     }
@@ -123,6 +152,15 @@ public class teamUtils {
                 .append(Text.literal("] ")).formatted(Formatting.WHITE);
 
         prefix = useTag ? prefix : teamName;
+
+        UUID uuid = player.getUuid();
+        boolean teamChatEnabled = teamChatManager.isEnabled(uuid);
+
+        if (teamChatEnabled) {
+            prefix = Text.literal("[").formatted(Formatting.WHITE)
+                    .append(Text.literal("TEAM").formatted(Formatting.AQUA))
+                    .append(Text.literal("] ")).formatted(Formatting.WHITE);
+        }
 
         return Text.empty()
                 .append(prefix)

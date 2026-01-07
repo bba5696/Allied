@@ -20,13 +20,11 @@ import java.util.UUID;
 
 public class adminCommands {
 
-    // --- Pending resets map ---
     private static final Map<UUID, Confirmation> pendingResets = new HashMap<>();
 
     public record Confirmation(String code, long expiryTime) {
     }
 
-    // --- Generate random confirmation code ---
     private static String generateCode() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         Random rand = new Random();
@@ -118,7 +116,6 @@ public class adminCommands {
                         )
 
                         .then(CommandManager.literal("reset")
-                                // Optional code argument
                                 .then(CommandManager.argument("code", StringArgumentType.string())
                                         .executes(context -> {
                                             ServerPlayerEntity player = context.getSource().getPlayer();
@@ -156,7 +153,6 @@ public class adminCommands {
                                             return 1;
                                         })
                                 )
-                                // No code → generate confirmation code
                                 .executes(context -> {
                                     ServerPlayerEntity player = context.getSource().getPlayer();
                                     if (player == null) return 0;
@@ -170,7 +166,7 @@ public class adminCommands {
                                     }
 
                                     String code = generateCode();
-                                    long expiry = System.currentTimeMillis() + 60_000; // 60 seconds
+                                    long expiry = System.currentTimeMillis() + 60_000;
                                     pendingResets.put(uuid, new Confirmation(code, expiry));
 
                                     context.getSource().sendFeedback(
