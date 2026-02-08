@@ -8,6 +8,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import net.minecraft.nbt.NbtList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +44,8 @@ public class datConfig {
 
         settings.putInt("maxMembers", 5);
         settings.putBoolean("echest", true);
+        NbtList blockTeamsSettings = new NbtList();
+        settings.put("blockTeamsSettings", blockTeamsSettings);
 
         return root;
     }

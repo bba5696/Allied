@@ -15,6 +15,7 @@ import net.minecraft.util.Formatting;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import net.minecraft.server.command.ServerCommandSource;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -574,6 +575,85 @@ public class datManager {
         }
 
         player.sendMessage(message, false);
+    }
+
+    public void handleSettingsAdmin(
+            ServerCommandSource source,
+            String teamName,
+            @Nullable String settingKey,
+            @Nullable Boolean value
+    ) throws CommandSyntaxException, IOException {
+
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+
+        if (!teams.contains(teamName)) {
+            throw new SimpleCommandExceptionType(
+                    Text.literal("Team '" + teamName + "' does not exist!")
+            ).create();
+        }
+
+        NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+        NbtCompound settings = teamData.getCompoundOrEmpty("settings");
+
+        if (settingKey == null || value == null) {
+            showTeamSettingsAdmin(source, teamName);
+            return;
+        }
+
+        if (!settings.contains(settingKey)) {
+            throw new SimpleCommandExceptionType(
+                    Text.literal("Setting '" + settingKey + "' does not exist!")
+            ).create();
+        }
+
+        settings.putBoolean(settingKey, value);
+        save();
+    }
+
+    public void showTeamSettingsAdmin(ServerCommandSource source, String teamName) {
+        NbtCompound teams = data.getCompoundOrEmpty("teams");
+        NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+        NbtCompound settings = teamData.getCompoundOrEmpty("settings");
+
+        MutableText message = Text.literal("Admin Settings for " + teamName + ":")
+                .formatted(Formatting.YELLOW);
+
+        for (String key : settings.getKeys()) {
+            boolean value = settings.getBoolean(key).orElse(false);
+
+            Text status = Text.literal(value ? "☑ ENABLED" : "☒ DISABLED")
+                    .formatted(value ? Formatting.GREEN : Formatting.RED);
+
+            Text enableButton = Text.literal("[ENABLE]")
+                    .styled(style -> style
+                            .withColor(Formatting.GREEN)
+                            .withClickEvent(
+                                    new ClickEvent.RunCommand(
+                                            "/alliedAdmin modify_settings " + teamName + " " + key + " true"
+                                    )
+                            )
+                    );
+
+            Text disableButton = Text.literal("[DISABLE]")
+                    .styled(style -> style
+                            .withColor(Formatting.RED)
+                            .withClickEvent(
+                                    new ClickEvent.RunCommand(
+                                            "/alliedAdmin modify_settings " + teamName + " " + key + " false"
+                                    )
+                            )
+                    );
+
+            message.append(Text.literal("\n"))
+                    .append(Text.literal(key + ": "))
+                    .append(status)
+                    .append(Text.literal("\n "))
+                    .append(enableButton)
+                    .append(Text.literal(" "))
+                    .append(disableButton);
+        }
+
+        source.sendFeedback(() -> message, false);
     }
 
     public void executeSet(ServerPlayerEntity player, String field, String value) throws CommandSyntaxException, IOException {

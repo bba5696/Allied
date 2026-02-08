@@ -451,6 +451,27 @@ public class commands {
                         .then(CommandManager.literal("settings")
                                 .executes(context -> {
                                     ServerPlayerEntity player = context.getSource().getPlayer();
+                                    assert player != null;
+
+                                    String teamName = datManager.get().getTeam(player.getUuid());
+                                    if (teamName != null) {
+                                        NbtList blocked = datManager.get()
+                                                .getData()
+                                                .getCompoundOrEmpty("settings")
+                                                .getListOrEmpty("blockTeamsSettings");
+
+                                        for (int i = 0; i < blocked.size(); i++) {
+                                            if (teamName.equalsIgnoreCase(blocked.getString(i).orElse(""))) {
+                                                context.getSource().sendError(
+                                                        Text.literal(
+                                                                "Server Admin has disabled you from changing your team settings, please contact the Server's Admin!"
+                                                        )
+                                                );
+                                                return 0;
+                                            }
+                                        }
+                                    }
+
                                     try {
                                         assert player != null;
                                         datManager.get().handleSettings(player, null, null);
@@ -482,8 +503,29 @@ public class commands {
                                             return builder.buildFuture();
                                         })
                                         .executes(context -> {
-                                            String setting = StringArgumentType.getString(context, "setting");
                                             ServerPlayerEntity player = context.getSource().getPlayer();
+                                            assert player != null;
+
+                                            String teamName = datManager.get().getTeam(player.getUuid());
+                                            if (teamName != null) {
+                                                NbtList blocked = datManager.get()
+                                                        .getData()
+                                                        .getCompoundOrEmpty("settings")
+                                                        .getListOrEmpty("blockTeamsSettings");
+
+                                                for (int i = 0; i < blocked.size(); i++) {
+                                                    if (teamName.equalsIgnoreCase(blocked.getString(i).orElse(""))) {
+                                                        context.getSource().sendError(
+                                                                Text.literal(
+                                                                        "Server Admin has disabled you from changing your team settings, please contact the Server's Admin!"
+                                                                )
+                                                        );
+                                                        return 0;
+                                                    }
+                                                }
+                                            }
+
+                                            String setting = StringArgumentType.getString(context, "setting");
                                             try {
                                                 assert player != null;
                                                 datManager.get().handleSettings(player, setting, null);
@@ -494,9 +536,30 @@ public class commands {
                                         })
                                         .then(CommandManager.argument("value", BoolArgumentType.bool())
                                                 .executes(context -> {
+                                                    ServerPlayerEntity player = context.getSource().getPlayer();
+                                                    assert player != null;
+
+                                                    String teamName = datManager.get().getTeam(player.getUuid());
+                                                    if (teamName != null) {
+                                                        NbtList blocked = datManager.get()
+                                                                .getData()
+                                                                .getCompoundOrEmpty("settings")
+                                                                .getListOrEmpty("blockTeamsSettings");
+
+                                                        for (int i = 0; i < blocked.size(); i++) {
+                                                            if (teamName.equalsIgnoreCase(blocked.getString(i).orElse(""))) {
+                                                                context.getSource().sendError(
+                                                                        Text.literal(
+                                                                                "Server Admin has disabled you from changing your team settings, please contact the Server's Admin!"
+                                                                        )
+                                                                );
+                                                                return 0;
+                                                            }
+                                                        }
+                                                    }
+
                                                     String setting = StringArgumentType.getString(context, "setting");
                                                     boolean value = BoolArgumentType.getBool(context, "value");
-                                                    ServerPlayerEntity player = context.getSource().getPlayer();
 
                                                     try {
                                                         assert player != null;
@@ -518,6 +581,7 @@ public class commands {
                                         )
                                 )
                         )
+
                         .then(CommandManager.literal("set")
                                 .then(CommandManager.argument("field", StringArgumentType.word())
                                         .suggests((ctx, builder) -> {

@@ -1,11 +1,15 @@
 package com.bba.allied.commands;
 
-import com.bba.allied.data.datConfig;
 import com.bba.allied.data.datManager;
+import com.bba.allied.teamUtils.teamUtils;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtString;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -181,6 +185,155 @@ public class adminCommands {
 
                                     return 1;
                                 })
+                        )
+
+                        .then(CommandManager.literal("blockSettings")
+                                .then(CommandManager.argument("teamName", StringArgumentType.string())
+                                        .suggests((context, builder) -> {
+                                            datManager.get().getData()
+                                                    .getCompoundOrEmpty("teams")
+                                                    .getKeys()
+                                                    .forEach(builder::suggest);
+                                            return builder.buildFuture();
+                                        })
+                                        .then(CommandManager.argument("value", BoolArgumentType.bool())
+                                                .executes(context -> {
+                                                    String teamName = StringArgumentType.getString(context, "teamName");
+                                                    boolean value = BoolArgumentType.getBool(context, "value");
+
+                                                    NbtCompound data = datManager.get().getData();
+                                                    NbtCompound teams = data.getCompoundOrEmpty("teams");
+
+                                                    if (!teams.contains(teamName)) {
+                                                        context.getSource().sendError(
+                                                                Text.literal("Team '" + teamName + "' does not exist!")
+                                                        );
+                                                        return 0;
+                                                    }
+
+                                                    NbtCompound settings = data.getCompoundOrEmpty("settings");
+                                                    NbtList blocked = settings.getListOrEmpty("blockTeamsSettings");
+
+                                                    int index = -1;
+                                                    for (int i = 0; i < blocked.size(); i++) {
+                                                        if (teamName.equalsIgnoreCase(blocked.getString(i).orElse(""))) {
+                                                            index = i;
+                                                            break;
+                                                        }
+                                                    }
+
+                                                    if (value) {
+                                                        if (index != -1) {
+                                                            context.getSource().sendError(
+                                                                    Text.literal("This team is already blocked!")
+                                                            );
+                                                            return 0;
+                                                        }
+
+                                                        blocked.add(NbtString.of(teamName));
+                                                        context.getSource().sendFeedback(
+                                                                () -> Text.literal("Team '" + teamName + "' is now blocked from changing settings."),
+                                                                false
+                                                        );
+                                                    } else {
+                                                        if (index == -1) {
+                                                            context.getSource().sendError(
+                                                                    Text.literal("This team is not blocked already!")
+                                                            );
+                                                            return 0;
+                                                        }
+
+                                                        blocked.remove(index);
+                                                        context.getSource().sendFeedback(
+                                                                () -> Text.literal("Team '" + teamName + "' can now change settings."),
+                                                                false
+                                                        );
+                                                    }
+
+                                                    settings.put("blockTeamsSettings", blocked);
+
+                                                    try {
+                                                        datManager.get().save();
+                                                    } catch (IOException e) {
+                                                        throw new RuntimeException(e);
+                                                    }
+
+                                                    return 1;
+                                                })
+                                        )
+                                )
+                        )
+
+                        .then(CommandManager.literal("modifySettings")
+                                .then(CommandManager.argument("teamName", StringArgumentType.string())
+                                        .suggests((context, builder) -> {
+                                            datManager.get().getData().getCompoundOrEmpty("teams").getKeys()
+                                                    .forEach(builder::suggest);
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(context -> {
+                                            String teamName = StringArgumentType.getString(context, "teamName");
+                                            ServerPlayerEntity player = context.getSource().getPlayer();
+                                            assert player != null;
+
+                                            try {
+                                                datManager.get().handleSettingsAdmin(player.getCommandSource(), teamName, null, null);
+                                            } catch (IOException | CommandSyntaxException e) {
+                                                throw new RuntimeException(e);
+                                            }
+
+                                            return 1;
+                                        })
+                                        .then(CommandManager.argument("setting", StringArgumentType.string())
+                                                .suggests((context, builder) -> {
+                                                    String teamName = StringArgumentType.getString(context, "teamName");
+                                                    NbtCompound teams = datManager.get().getData().getCompoundOrEmpty("teams");
+                                                    NbtCompound teamData = teams.getCompoundOrEmpty(teamName);
+
+                                                    NbtCompound settings = teamData.getCompoundOrEmpty("settings");
+                                                    for (String key : settings.getKeys()) builder.suggest(key);
+
+                                                    return builder.buildFuture();
+                                                })
+                                                .executes(context -> {
+                                                    String teamName = StringArgumentType.getString(context, "teamName");
+                                                    String setting = StringArgumentType.getString(context, "setting");
+                                                    ServerPlayerEntity player = context.getSource().getPlayer();
+                                                    assert player != null;
+
+                                                    try {
+                                                        datManager.get().handleSettingsAdmin(player.getCommandSource(), teamName, setting, null);
+                                                    } catch (IOException | CommandSyntaxException e) {
+                                                        throw new RuntimeException(e);
+                                                    }
+
+                                                    return 1;
+                                                })
+                                                .then(CommandManager.argument("value", BoolArgumentType.bool())
+                                                        .executes(context -> {
+                                                            String teamName = StringArgumentType.getString(context, "teamName");
+                                                            String setting = StringArgumentType.getString(context, "setting");
+                                                            boolean value = BoolArgumentType.getBool(context, "value");
+                                                            ServerPlayerEntity player = context.getSource().getPlayer();
+                                                            assert player != null;
+
+                                                            try {
+                                                                datManager.get().handleSettingsAdmin(player.getCommandSource(), teamName, setting, value);
+                                                            } catch (IOException | CommandSyntaxException e) {
+                                                                throw new RuntimeException(e);
+                                                            }
+
+                                                            teamUtils.rebuildTeams(context.getSource().getServer());
+
+                                                            context.getSource().sendFeedback(
+                                                                    () -> Text.literal("Admin set '" + setting + "' for team '" + teamName + "' to " + value),
+                                                                    false
+                                                            );
+                                                            return 1;
+                                                        })
+                                                )
+                                        )
+                                )
                         )
 
 
