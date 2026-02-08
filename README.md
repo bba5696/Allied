@@ -1,24 +1,8 @@
-<a href="https://modrinth.com/mod/fabric-api" target="_blank">
-  <img 
-    src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/requires/fabric-api_vector.svg" 
-    alt="fabric-api" 
-    height="56"
-  >
-</a>
-<a href="https://github.com/bba5696/Allied" target="_blank">
-  <img 
-    src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/social/github-plural_vector.svg" 
-    alt="github-plural" 
-    height="56"
-  >
-</a>
-<a href="https://www.patreon.com/cw/Bba5696" target="_blank">
-  <img 
-    src="https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/donate/patreon-singular_vector.svg" 
-    alt="patreon-singular" 
-    height="56"
-  >
-</a>
+[![Fabric API](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/requires/fabric-api_64h.png)](https://modrinth.com/mod/fabric-api)
+[![GitHub](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/social/github-plural_64h.png)](https://github.com/bba5696/Allied)
+[![Patreon](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/donate/patreon-plural_64h.png)](https://www.patreon.com/cw/Bba5696)
+[![Modrinth](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy-minimal/available/modrinth_64h.png)](https://modrinth.com/mod/allied)
+[![CurseForge](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy-minimal/available/curseforge_64h.png)](https://www.curseforge.com/minecraft/mc-mods/allied)
 
 # Allied
 **This mod allows players to create and make teams, featuring friendly fire, Seeing teamates while there invisible and echests (soon) all togglable in settings, these features are easily accessed with `/allied`**
@@ -40,7 +24,8 @@
 - `/allied info` Show info about the team, Team Name, Team Tag, Owner, Members
 - `/allied settings` Shows the teams settings available and buttons to change them **(Team Owner Command)**
 - `/allied set <teamName|teamTag|teamColor> <value>` Chose a value to change and set a name, tag or color **(Team Owner Command)**
-- `allied kick <playerName>` Kick a player from the team **(Team Owner Command)**
+- `/allied kick <playerName>` Kick a player from the team **(Team Owner Command)**
+- `/allied tm` Toggle team chat
 
 # Admin Commands
 
@@ -50,6 +35,8 @@
 - `/alliedAdmin reset [<Code>]` A command to wipe all mod data and reset it to default, after entering the command, a code thats valid for 60s will be given to confirm the reset
 
 <hr>
+
+**This description is currently up to date with v1.1.0 of the mod**
 
 **If you like the mod, please consider donating to support my development**
 
