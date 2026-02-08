@@ -33,6 +33,8 @@
 - `/alliedAdmin info <teamName>` Get the info of any valid team
 - `/alliedAdmin list` List all teams in the server
 - `/alliedAdmin reset [<Code>]` A command to wipe all mod data and reset it to default, after entering the command, a code thats valid for 60s will be given to confirm the reset
+- `/alliedAdmin blockSettings <teamName> <boolean>` Prevents the team's owner from changing their settings
+- `/alliedAdmin modifySettings <teamName> <settings> <boolean>` Modifies the settings of a team
 
 <hr>
 
