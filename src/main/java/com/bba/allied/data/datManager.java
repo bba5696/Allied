@@ -858,6 +858,7 @@ public class datManager {
         settings.putBoolean("highlight", false);
         settings.putBoolean("allowRequests", true);
         settings.putBoolean("chatUseTag", true);
+        settings.putBoolean("tabUseTag", true);
 
         teamData.put("settings", settings);
 

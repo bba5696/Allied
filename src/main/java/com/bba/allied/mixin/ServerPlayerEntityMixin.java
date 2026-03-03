@@ -33,7 +33,13 @@ public abstract class ServerPlayerEntityMixin {
                     .anyMatch(e -> e.asString().orElse("").equals(uuid));
 
             if (isOwner || isMember) {
-                String tag = team.getString("teamTag").orElse(teamName).toUpperCase();
+                boolean tabUseTag = team.getCompoundOrEmpty("settings").getBoolean("tabUseTag").orElse(true);
+                String tag;
+                if (tabUseTag) {
+                    tag = team.getString("teamTag").orElse(teamName).toUpperCase();
+                } else {
+                    tag = teamName.toUpperCase();
+                }
                 String colorStr = team.getString("tagColor").orElse("WHITE");
 
                 Formatting tagColor;
