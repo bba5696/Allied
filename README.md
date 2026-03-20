@@ -1,11 +1,5 @@
 > [!NOTE]
-> **This is an unofficial fork of [Allied](https://github.com/bba5696/Allied) maintained to fix a couple of bugs present in the original:**
-> - **Cross-dimension chat**: messages were only delivered to players in the same dimension as the sender (e.g. Overworld players couldn't see messages from players in the Nether).
-> - **Team chat Discord leak**: private team chat messages were being forwarded to Discord by [Simple Discord Link](https://modrinth.com/mod/sdlink) instead of staying in-game only.
->
-> No new features are added. If you don't use Simple Discord Link or don't play across dimensions, you don't need this fork.
-
-**This mod has been archived due to not me having the motivation to continue and not alot of people downloading it, This mod may be updated in the near future but for now it won't.**
+> **This mod is hardly updated, but I do look at forks and possible contributions to this mod.**
 <hr>
 
 
