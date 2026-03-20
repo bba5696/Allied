@@ -82,7 +82,10 @@ public class teamUtils {
                     }
                 }
             } else {
-                player.getEntityWorld().getPlayers().forEach(p -> p.sendMessage(formatted, false));
+                MinecraftServer server = player.getEntityWorld().getServer();
+                if (server != null) {
+                    server.getPlayerManager().getPlayerList().forEach(p -> p.sendMessage(formatted, false));
+                }
                 LOGGER.info("{}", formatted.getString());
             }
 

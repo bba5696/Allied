@@ -13,13 +13,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ServerPlayerEntity.class)
 public abstract class ServerPlayerEntityMixin {
 
-    @Inject(
-            method = "getPlayerListName", // tablist only
-            at = @At("RETURN"),
-            cancellable = true
-    )
+    @Inject(method = "getPlayerListName", at = @At("RETURN"), cancellable = true)
     private void allied$tablistName(CallbackInfoReturnable<Text> cir) {
-        ServerPlayerEntity player = (ServerPlayerEntity)(Object)this;
+        ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
 
         NbtCompound teams = datManager.get().getData().getCompoundOrEmpty("teams");
         String uuid = player.getUuid().toString();
@@ -60,7 +56,6 @@ public abstract class ServerPlayerEntityMixin {
             }
         }
 
-        // No team → keep vanilla
         cir.setReturnValue(player.getName());
     }
 }
