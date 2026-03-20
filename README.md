@@ -1,5 +1,4 @@
- > [!NOTE] 
- > **This mod is hardly updated, but I do check every now and then and will accept any contributions to the mod, thank you!**
+**This mod has been archived due to not me having the motivation to continue and not alot of people downloading it, This mod may be updated in the near future but for now it won't.**
 <hr>
 
 [![Fabric API](https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/requires/fabric-api_64h.png)](https://modrinth.com/mod/fabric-api)
