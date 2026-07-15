@@ -3,7 +3,8 @@ package com.bba.allied.teamUtils;
 import java.util.HashSet;
 import java.util.UUID;
 
-public class teamChatManager {
+public final class teamChatManager {
+
     private static final HashSet<UUID> TEAM_CHAT = new HashSet<>();
 
     public static void enable(UUID uuid) {
@@ -28,5 +29,3 @@ public class teamChatManager {
         }
     }
 }
-
-
