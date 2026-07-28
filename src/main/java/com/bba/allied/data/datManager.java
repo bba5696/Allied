@@ -718,6 +718,11 @@ public class datManager {
                             Component.nullToEmpty("Team Name is too long!")
                     ).create();
                 }
+                if (foundTeamName.equalsIgnoreCase(value)) {
+						throw new SimpleCommandExceptionType(
+								Text.literal("You are already using this Team Name.")
+								).create();
+                }
                 teams.put(value, foundTeam);
                 teams.remove(foundTeamName);
             }
