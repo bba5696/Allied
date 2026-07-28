@@ -721,7 +721,7 @@ public class datManager {
                 if (foundTeamName.equalsIgnoreCase(value)) {
 						throw new SimpleCommandExceptionType(
 								Text.literal("You are already using this Team Name.")
-								).create();
+							).create();
                 }
                 teams.put(value, foundTeam);
                 teams.remove(foundTeamName);
