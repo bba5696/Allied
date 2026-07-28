@@ -623,7 +623,7 @@ public class commands {
                                                     teamUtils.rebuildTeams(server);
 
                                                     context.getSource().sendSuccess(
-                                                            () -> Component.literal("Successfully updated  " + field),
+                                                            () -> Component.literal("Successfully updated " + field),
                                                             false
                                                     );
                                                     return 1;
