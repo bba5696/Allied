@@ -73,7 +73,7 @@ If [Placeholder API](https://modrinth.com/mod/placeholder-api) is installed, All
 
 <hr>
 
-**This description is currently up to date with v1.2.3 of the mod**
+**This description is currently up to date with v2.0.0 of the mod**
 
 **If you like the mod, please consider donating to support my development**
 
