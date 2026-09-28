@@ -21,15 +21,22 @@
 - `/allied disband` Disbands the team **(Team Owner Command)**
 - `/allied leave` Leave the current team you are in
 - `/allied join <teamName>` Send a join request to the team owner
-- `/allied accept <playerName>` Accept the players join request **(Team Owner Command)**
-- `/allied deny <playerName>` Deny the players join request **(Team Owner Command)**
-- `/allied invite <playerName>` Send a team invitation to a player for them to join **(Team Owner Command)**
+- `/allied accept <playerName>` Accept the players join request **(Owner/Officer Command)**
+- `/allied deny <playerName>` Deny the players join request **(Owner/Officer Command)**
+- `/allied invite <playerName>` Send a team invitation to a player for them to join, works for offline players too (they see it when they log in) **(Owner/Officer Command)**
 - `/allied invAccept <teamName>` Accept the owner invite
 - `/allied invDeny <teamName>` Deny the owners invite
 - `/allied info` Show info about the team, Team Name, Team Tag, Owner, Members
 - `/allied settings` Shows the teams settings available and buttons to change them **(Team Owner Command)**
 - `/allied set <teamName|teamTag|teamColor> <value>` Chose a value to change and set a name, tag or color **(Team Owner Command)**
-- `/allied kick <playerName>` Kick a player from the team **(Team Owner Command)**
+- `/allied kick <playerName>` Kick a player from the team, works for offline players. Officers can only kick members **(Owner/Officer Command)**
+- `/allied promote <playerName>` Make a member an officer **(Team Owner Command)**
+- `/allied demote <playerName>` Remove a player's officer rank **(Team Owner Command)**
+- `/allied transfer <playerName>` Give the team to another member, you become an officer **(Team Owner Command)**
+- `/allied mark <name> [<x> <y> <z>]` Save a named location for your team (defaults to where you stand)
+- `/allied marks` List your team's marks with coordinates and distance
+- `/allied unmark <name>` Remove a mark (the player who set it, officers and the owner)
+- `/allied storage` Open the shared team storage (18 slots, one player at a time, must be enabled by an admin)
 - `/allied tm` Toggle team chat
 
 # Admin Commands
@@ -42,7 +49,16 @@
 - `/alliedAdmin modifySettings <teamName> <settings> <boolean>` Modifies the settings of a team
 - `/alliedAdmin maxTeamNameLength <value>` Set the max length of team names
 - `/alliedAdmin maxTeamTagLength <value>` Set the max length of team tags
+- `/alliedAdmin storage <teamName> <boolean>` Enable or disable shared team storage for a team (disabled by default)
+- `/alliedAdmin transfer <teamName> <playerName>` Give a team to one of its members, for teams whose owner stopped playing
 - `/alliedAdmin exportJson <boolean>` Export all teams to `config/allied/teams.json` whenever they change, useful for showing teams on a website
+
+# Team features
+
+- **Roles:** every team has one owner and any number of officers. Officers can invite, accept and deny join requests, kick members and remove any mark
+- **Death coordinates:** when a team member dies, their coordinates are sent to the team only (toggle `deathCoords` in `/allied settings`)
+- **Marks:** shared named coordinates for the team, click coordinates in chat to copy them. No teleporting
+- **Team storage:** an 18-slot shared chest opened with `/allied storage`. Only one player can have it open at a time, contents are saved on every change, and every open/close is logged to `config/allied/storage/audit.log` with what was added and taken
 
 # Placeholders
 

@@ -65,6 +65,7 @@ public class commands {
                                     ServerPlayer player = context.getSource().getPlayer();
                                     assert player != null;
                                     UUID ownerUuid = player.getUUID();
+                                    teamCommands.checkCanDisband(player);
                                     try {
                                         datManager.get().removeTeam(ownerUuid);
                                     } catch (IOException e) {
@@ -161,28 +162,12 @@ public class commands {
                                             UUID ownerUUID = owner.getUUID();
 
                                             String targetName = StringArgumentType.getString(context, "playerName");
-                                            UUID targetUUID;
-
-                                            try {
-                                                targetUUID = UUID.fromString(targetName);
-                                            } catch (IllegalArgumentException e) {
-                                                ServerPlayer targetPlayer = context.getSource().getServer()
-                                                        .getPlayerList()
-                                                        .getPlayerByName(targetName);
-
-                                                if (targetPlayer == null) {
-                                                    context.getSource().sendFailure(Component.literal("Player not found or not online!"));
-                                                    return 0;
-                                                }
-
-                                                targetUUID = targetPlayer.getUUID();
-                                            }
+                                            MinecraftServer acceptServer = context.getSource().getServer();
+                                            UUID targetUUID = datManager.get().resolvePlayer(acceptServer, targetName);
+                                            String acceptedName = datManager.get().nameOf(acceptServer, targetUUID);
 
                                             try {
                                                 datManager.get().handleRequest(ownerUUID, targetUUID, true);
-                                            } catch (CommandSyntaxException e) {
-                                                context.getSource().sendFailure((Component) e.getRawMessage());
-                                                return 0;
                                             } catch (IOException e) {
                                                 context.getSource().sendFailure(Component.literal("An internal error occurred while saving the team data."));
                                                 e.printStackTrace();
@@ -194,7 +179,7 @@ public class commands {
                                             teamUtils.rebuildTeams(server);
 
                                             context.getSource().sendSuccess(
-                                                    () -> Component.literal("Accepted join request from " + targetName),
+                                                    () -> Component.literal("Accepted join request from " + acceptedName),
                                                     false
                                             );
                                             return 1;
@@ -214,21 +199,9 @@ public class commands {
                                             UUID ownerUUID = owner.getUUID();
 
                                             String targetName = StringArgumentType.getString(context, "playerName");
-                                            UUID targetUUID;
-
-                                            try {
-                                                targetUUID = UUID.fromString(targetName);
-                                            } catch (IllegalArgumentException e) {
-                                                ServerPlayer targetPlayer = context.getSource().getServer()
-                                                        .getPlayerList().getPlayerByName(targetName);
-
-                                                if (targetPlayer == null) {
-                                                    context.getSource().sendFailure(Component.literal("Player not found or not online!"));
-                                                    return 0;
-                                                }
-
-                                                targetUUID = targetPlayer.getUUID();
-                                            }
+                                            MinecraftServer denyServer = context.getSource().getServer();
+                                            UUID targetUUID = datManager.get().resolvePlayer(denyServer, targetName);
+                                            String deniedName = datManager.get().nameOf(denyServer, targetUUID);
 
                                             try {
                                                 datManager.get().handleRequest(ownerUUID, targetUUID, false);
@@ -237,7 +210,7 @@ public class commands {
                                             }
 
                                             context.getSource().sendSuccess(
-                                                    () -> Component.literal("Denied join request from " + targetName),
+                                                    () -> Component.literal("Denied join request from " + deniedName),
                                                     false
                                             );
                                             return 1;
@@ -247,35 +220,30 @@ public class commands {
 
                         .then(Commands.literal("invite")
                                 .then(Commands.argument("playerName", StringArgumentType.word())
+                                        .suggests((context, builder) -> {
+                                            context.getSource().getServer().getPlayerList().getPlayers()
+                                                    .forEach(player -> builder.suggest(player.getGameProfile().name()));
+                                            return builder.buildFuture();
+                                        })
                                         .executes(context -> {
-                                            ServerPlayer owner = context.getSource().getPlayer();
-                                            ServerPlayer target = context.getSource()
-                                                    .getServer()
-                                                    .getPlayerList()
-                                                    .getPlayerByName(StringArgumentType.getString(context, "playerName"));
+                                            ServerPlayer owner = context.getSource().getPlayerOrException();
+                                            MinecraftServer server = context.getSource().getServer();
+                                            UUID targetUUID = datManager.get().resolvePlayer(server, StringArgumentType.getString(context, "playerName"));
+                                            String targetName = datManager.get().nameOf(server, targetUUID);
 
-                                            if (target == null) {
-                                                context.getSource().sendFailure(Component.literal("Player not online!"));
-                                                return 0;
-                                            }
-
+                                            boolean online;
                                             try {
-                                                datManager.get().sendInvite(
-                                                        owner.getUUID(),
-                                                        target.getUUID(),
-                                                        context.getSource().getServer()
-                                                );
-                                            } catch (CommandSyntaxException e) {
-                                                context.getSource().sendFailure((Component) e.getRawMessage());
-                                                return 0;
-                                            } catch (Exception e) {
+                                                online = datManager.get().sendInvite(owner.getUUID(), targetUUID, server);
+                                            } catch (IOException e) {
                                                 context.getSource().sendFailure(Component.literal("Internal error occured, please contact server owner."));
                                                 e.printStackTrace();
                                                 return 0;
                                             }
 
                                             context.getSource().sendSuccess(
-                                                    () -> Component.literal("Invite sent."),
+                                                    () -> Component.literal(online
+                                                            ? "Invite sent to " + targetName + "."
+                                                            : "Invite sent. " + targetName + " is offline and will see it when they log in."),
                                                     false
                                             );
                                             return 1;
@@ -371,91 +339,10 @@ public class commands {
 
                         .then(Commands.literal("info")
                                 .executes(context -> {
-                                    ServerPlayer player = context.getSource().getPlayer();
-                                    if (player == null) return 0;
-
-                                    String playerUuid = player.getUUID().toString();
-                                    CompoundTag teams = datManager.get().getData().getCompoundOrEmpty("teams");
-
-                                    CompoundTag playerTeam = null;
-                                    String teamName = null;
-
-                                    for (String key : teams.keySet()) {
-                                        CompoundTag team = teams.getCompoundOrEmpty(key);
-
-                                        if (team.getString("owner").orElse("").equals(playerUuid)) {
-                                            playerTeam = team;
-                                            teamName = key;
-                                            break;
-                                        }
-
-                                        var members = team.getListOrEmpty("members");
-                                        for (int i = 0; i < members.size(); i++) {
-                                            if (members.getString(i).orElse("").equals(playerUuid)) {
-                                                playerTeam = team;
-                                                teamName = key;
-                                                break;
-                                            }
-                                        }
-
-                                        if (playerTeam != null) break;
-                                    }
-
-                                    if (playerTeam == null) {
-                                        context.getSource().sendSuccess(() -> Component.literal("You are not in a team!"), false);
-                                        return 0;
-                                    }
-
-                                    String teamTag = playerTeam.getString("teamTag").orElse(teamName);
-                                    String ownerUuid = playerTeam.getString("owner").orElse("");
-                                    String ownerName = "Unknown";
-
-                                    ServerPlayer owner = null;
-                                    try {
-                                        if (player.level() instanceof ServerLevel serverWorld) {
-                                            MinecraftServer server = serverWorld.getServer();
-                                            owner = server.getPlayerList().getPlayer(UUID.fromString(ownerUuid));
-                                        }
-                                        if (owner != null) ownerName = String.valueOf(owner.asLivingEntity().getName().getString());
-                                    } catch (IllegalArgumentException ignored) {}
-
-                                    var membersList = playerTeam.getListOrEmpty("members");
-                                    StringBuilder membersText = new StringBuilder();
-                                    AtomicInteger offlineCount = new AtomicInteger();
-
-                                    for (int i = 0; i < membersList.size(); i++) {
-                                        membersList.getString(i).ifPresent(uuidStr -> {
-                                            try {
-                                                ServerPlayer member = null;
-                                                if (player.level() instanceof ServerLevel serverWorld) {
-                                                    MinecraftServer server = serverWorld.getServer();
-                                                    member = server.getPlayerList().getPlayer(UUID.fromString(uuidStr));
-                                                }
-                                                if (member != null) {
-                                                    if (membersText.length() > 0) membersText.append(", ");
-                                                    membersText.append(member.asLivingEntity().getName().getString());
-                                                } else {
-                                                    offlineCount.getAndIncrement();
-                                                }
-                                            } catch (IllegalArgumentException ignored) {
-                                                offlineCount.getAndIncrement();
-                                            }
-                                        });
-                                    }
-
-                                    if (offlineCount.get() > 0) {
-                                        if (membersText.length() > 0) membersText.append(", ");
-                                        membersText.append("(").append(offlineCount.get()).append(") Offline");
-                                    }
-
-                                    Component infoMessage = Component.literal("§6=== Team Info ===\n")
-                                            .append(Component.literal("§eTeam Name: §f" + teamName + "\n"))
-                                            .append(Component.literal("§eTeam Tag: §f" + teamTag + "\n"))
-                                            .append(Component.literal("§eOwner: §f" + ownerName + "\n"))
-                                            .append(Component.literal("§eMembers: §f" + (membersText.length() > 0 ? membersText : "None")));
-
-                                    context.getSource().sendSuccess(() -> infoMessage, false);
-
+                                    ServerPlayer player = context.getSource().getPlayerOrException();
+                                    String teamName = datManager.get().requireTeam(player.getUUID());
+                                    Component info = datManager.get().getTeamInfo(context.getSource().getServer(), teamName);
+                                    context.getSource().sendSuccess(() -> info, false);
                                     return 1;
                                 })
                         )
@@ -656,15 +543,13 @@ public class commands {
                                                 }
                                             }
 
-                                            if (teamData == null) return builder.buildFuture();
+                                            String teamName = datManager.get().getTeam(owner.getUUID());
+                                            if (teamName == null) return builder.buildFuture();
                                             MinecraftServer server = context.getSource().getServer();
-                                            ListTag members = teamData.getListOrEmpty("members");
-                                            for (int i = 0; i < members.size(); i++) {
-                                                String memberUUID = members.getString(i).orElse("");
-                                                if (!ownerStr.equals(memberUUID)) {
-                                                    ServerPlayer member = server.getPlayerList().getPlayer(UUID.fromString(memberUUID));
-
-                                                    if (member != null) builder.suggest(member.getGameProfile().name());
+                                            CompoundTag team = datManager.get().getTeamData(teamName);
+                                            for (UUID member : datManager.get().getTeamPlayers(team)) {
+                                                if (datManager.get().getRole(team, member) != datManager.Role.OWNER) {
+                                                    builder.suggest(datManager.get().nameOf(server, member));
                                                 }
                                             }
 
@@ -676,14 +561,11 @@ public class commands {
 
                                             String targetName = StringArgumentType.getString(context, "playerName");
                                             MinecraftServer server = context.getSource().getServer();
-                                            ServerPlayer target = server.getPlayerList().getPlayerByName(targetName);
-                                            if (target == null) {
-                                                context.getSource().sendFailure(Component.literal("Player not found or not online!"));
-                                                return 0;
-                                            }
+                                            UUID target = datManager.get().resolvePlayer(server, targetName);
 
+                                            String kickedName;
                                             try {
-                                                datManager.get().kickMember(owner, target);
+                                                kickedName = datManager.get().kickMember(owner, target, server);
                                             } catch (IOException e) {
                                                 context.getSource().sendFailure(Component.literal("Failed to save team data."));
                                                 e.printStackTrace();
@@ -692,6 +574,12 @@ public class commands {
 
                                             teamUtils.rebuildTeams(server);
 
+                                            context.getSource().sendSuccess(
+                                                    () -> Component.literal("Removed ")
+                                                            .append(Component.literal(kickedName).withStyle(ChatFormatting.RED))
+                                                            .append(Component.literal(" from your team.")),
+                                                    false
+                                            );
                                             return 1;
                                         })
                                 )
