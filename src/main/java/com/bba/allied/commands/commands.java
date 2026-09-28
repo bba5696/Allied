@@ -8,6 +8,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.ChatFormatting;
+import net.minecraft.world.scores.TeamColor;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.nbt.CompoundTag;
@@ -31,6 +32,7 @@ public class commands {
     public static void registerCommands() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
                 Commands.literal("allied")
+                        .requires(CommandSourceStack::isPlayer)
 
                         .then(Commands.literal("create")
                                 .then(Commands.argument("name", StringArgumentType.string())
@@ -212,19 +214,25 @@ public class commands {
                                             UUID ownerUUID = owner.getUUID();
 
                                             String targetName = StringArgumentType.getString(context, "playerName");
-                                            ServerPlayer targetPlayer = context.getSource().getServer()
-                                                    .getPlayerList().getPlayerByName(targetName);
+                                            UUID targetUUID;
 
-                                            if (targetPlayer == null) {
-                                                context.getSource().sendFailure(Component.literal("Player not found or not online!"));
-                                                return 0;
+                                            try {
+                                                targetUUID = UUID.fromString(targetName);
+                                            } catch (IllegalArgumentException e) {
+                                                ServerPlayer targetPlayer = context.getSource().getServer()
+                                                        .getPlayerList().getPlayerByName(targetName);
+
+                                                if (targetPlayer == null) {
+                                                    context.getSource().sendFailure(Component.literal("Player not found or not online!"));
+                                                    return 0;
+                                                }
+
+                                                targetUUID = targetPlayer.getUUID();
                                             }
-
-                                            UUID targetUUID = targetPlayer.getUUID();
 
                                             try {
                                                 datManager.get().handleRequest(ownerUUID, targetUUID, false);
-                                            } catch (IOException | CommandSyntaxException e) {
+                                            } catch (IOException e) {
                                                 throw new RuntimeException(e);
                                             }
 
@@ -598,10 +606,8 @@ public class commands {
                                                 .suggests((ctx, builder) -> {
                                                     String field = StringArgumentType.getString(ctx, "field");
                                                     if (field.equalsIgnoreCase("color")) {
-                                                        for (ChatFormatting f : ChatFormatting.values()) {
-                                                            if (f.isColor()) {
-                                                                builder.suggest(f.getName());
-                                                            }
+                                                        for (TeamColor c : TeamColor.values()) {
+                                                            builder.suggest(c.getSerializedName());
                                                         }
                                                     }
                                                     return builder.buildFuture();

@@ -4,7 +4,10 @@ import com.bba.allied.commands.commands;
 import com.bba.allied.commands.adminCommands;
 import com.bba.allied.data.datConfig;
 import com.bba.allied.teamUtils.teamUtils;
+import com.bba.allied.compat.placeholderCompat;
+import com.bba.allied.data.datManager;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
@@ -41,8 +44,19 @@ public class Allied implements ModInitializer {
         adminCommands.registerCommands();
         teamUtils.register();
 
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server)
-                -> runDelayed(server, () -> teamUtils.rebuildTeams(server), 3));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            try {
+                datManager.get().rememberName(handler.player.getUUID(), handler.player.getGameProfile().name());
+            } catch (IOException e) {
+                LOGGER.error("Failed to save player name", e);
+            }
+            runDelayed(server, () -> teamUtils.rebuildTeams(server), 3);
+        });
+
+        if (FabricLoader.getInstance().isModLoaded("placeholder-api")) {
+            placeholderCompat.register();
+            LOGGER.info("Placeholder API found, registered Allied placeholders");
+        }
 
         LOGGER.info("Mod Successfully Initialized!");
     }

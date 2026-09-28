@@ -55,7 +55,5 @@ public abstract class ServerPlayerEntityMixin {
                 return;
             }
         }
-
-        cir.setReturnValue(player.getName());
     }
 }

@@ -1,6 +1,10 @@
 package com.bba.allied.data;
 
 import com.bba.allied.teamUtils.teamUtils;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.fabricmc.loader.api.FabricLoader;
@@ -16,11 +20,14 @@ import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.scores.TeamColor;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 import static com.bba.allied.data.datConfig.CreateDefault;
@@ -62,7 +69,113 @@ public class datManager {
     }
 
     public void save() throws IOException {
-        NbtIo.write(data, path);
+        // Write to a temp file first so a crash mid-save can't corrupt teams.dat
+        Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+        NbtIo.write(data, tmp);
+        Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+
+        exportJson();
+    }
+
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    // Writes config/allied/teams.json when enabled with /alliedAdmin exportJson true,
+    // so websites and other tools can read the teams without parsing NBT
+    public void exportJson() {
+        if (!data.getCompoundOrEmpty("settings").getBooleanOr("exportJson", false)) return;
+
+        CompoundTag teams = data.getCompoundOrEmpty("teams");
+        CompoundTag names = data.getCompoundOrEmpty("playerNames");
+
+        JsonArray teamsJson = new JsonArray();
+        for (String teamName : teams.keySet()) {
+            CompoundTag team = teams.getCompoundOrEmpty(teamName);
+
+            JsonObject teamJson = new JsonObject();
+            teamJson.addProperty("name", teamName);
+            teamJson.addProperty("tag", team.getStringOr("teamTag", ""));
+            teamJson.addProperty("color", team.getStringOr("tagColor", "white").toLowerCase());
+
+            String ownerUuid = team.getStringOr("owner", "");
+            teamJson.add("owner", playerJson(ownerUuid, names));
+
+            JsonArray membersJson = new JsonArray();
+            ListTag members = team.getListOrEmpty("members");
+            for (int i = 0; i < members.size(); i++) {
+                membersJson.add(playerJson(members.getString(i).orElse(""), names));
+            }
+            teamJson.add("members", membersJson);
+            teamJson.addProperty("memberCount", members.size() + 1);
+
+            teamsJson.add(teamJson);
+        }
+
+        JsonObject root = new JsonObject();
+        root.add("teams", teamsJson);
+
+        try {
+            Path jsonPath = path.resolveSibling("teams.json");
+            Path tmp = path.resolveSibling("teams.json.tmp");
+            Files.writeString(tmp, GSON.toJson(root));
+            Files.move(tmp, jsonPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            LOGGER.error("Failed to export teams.json", e);
+        }
+    }
+
+    private static JsonObject playerJson(String uuid, CompoundTag names) {
+        JsonObject player = new JsonObject();
+        player.addProperty("uuid", uuid);
+        player.addProperty("name", names.getStringOr(uuid, null));
+        return player;
+    }
+
+    // Remembers the last known name of a player, used by the JSON export for offline players
+    public void rememberName(UUID uuid, String name) throws IOException {
+        CompoundTag names = data.getCompoundOrEmpty("playerNames");
+        if (name.equals(names.getStringOr(uuid.toString(), null))) return;
+
+        names.putString(uuid.toString(), name);
+        data.put("playerNames", names);
+        save();
+    }
+
+    // Quotes a team name so it survives being passed through a clickable command
+    private static String quote(String s) {
+        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    private boolean teamIdTaken(CompoundTag teams, String teamName, @Nullable String ignoreTeam) {
+        String id = toTeamId(teamName);
+        for (String existing : teams.keySet()) {
+            if (existing.equals(ignoreTeam)) continue;
+            if (toTeamId(existing).equals(id)) return true;
+        }
+        return false;
+    }
+
+    private void clearPendingFor(String playerStr) {
+        CompoundTag teams = data.getCompoundOrEmpty("teams");
+        for (String name : teams.keySet()) {
+            CompoundTag t = teams.getCompoundOrEmpty(name);
+            for (String listKey : List.of("invites", "joinRequests")) {
+                ListTag list = t.getListOrEmpty(listKey);
+                for (int i = list.size() - 1; i >= 0; i--) {
+                    if (playerStr.equalsIgnoreCase(list.getString(i).orElse(""))) {
+                        list.remove(i);
+                    }
+                }
+            }
+        }
+    }
+
+    private void checkTeamNotFull(String teamName) throws CommandSyntaxException {
+        int memberCap = data.getCompoundOrEmpty("settings").getIntOr("maxMembers", 5);
+        if (getTeamMemberCount(teamName) >= memberCap) {
+            throw new SimpleCommandExceptionType(
+                    Component.nullToEmpty("This team is full!")
+            ).create();
+        }
     }
 
     public boolean isOwnerOfATeam(UUID uuid) {
@@ -142,7 +255,7 @@ public class datManager {
 
         CompoundTag teams = data.getCompoundOrEmpty("teams");
 
-        if (teams.contains(toTeamId(teamName))) {
+        if (teamIdTaken(teams, teamName, null)) {
             throw new SimpleCommandExceptionType(
                     Component.nullToEmpty("A team with this internal name already exists!")
             ).create();
@@ -330,12 +443,14 @@ public class datManager {
         String ownerStr = ownerUUID.toString();
 
         CompoundTag teamData = null;
+        String ownedTeamName = null;
 
         for (String teamName : teams.keySet()) {
             CompoundTag team = teams.getCompoundOrEmpty(teamName);
-            String storedOwner = team.getString("owner").orElseThrow();
+            String storedOwner = team.getString("owner").orElse("");
             if (ownerStr.equalsIgnoreCase(storedOwner)) {
                 teamData = team;
+                ownedTeamName = teamName;
                 break;
             }
         }
@@ -347,23 +462,31 @@ public class datManager {
         ListTag requests = teamData.getListOrEmpty("joinRequests");
         String requesterStr = requesterUUID.toString();
 
-        boolean found = false;
+        int index = -1;
         for (int i = 0; i < requests.size(); i++) {
-            String requestUUID = requests.getString(i).orElseThrow( );
-            if (requesterStr.equals(requestUUID)) {
-                found = true;
-                requests.remove(i);
+            if (requesterStr.equalsIgnoreCase(requests.getString(i).orElse(""))) {
+                index = i;
                 break;
             }
         }
 
-        if (!found) {
+        if (index == -1) {
             throw new SimpleCommandExceptionType(Component.nullToEmpty("No pending request from this player!")).create();
         }
 
         if (accept) {
+            if (isInTeam(requesterUUID)) {
+                requests.remove(index);
+                save();
+                throw new SimpleCommandExceptionType(Component.nullToEmpty("That player has already joined another team!")).create();
+            }
+            checkTeamNotFull(ownedTeamName);
+
             ListTag members = teamData.getListOrEmpty("members");
             members.add(StringTag.valueOf(requesterStr));
+            clearPendingFor(requesterStr);
+        } else {
+            requests.remove(index);
         }
 
         save();
@@ -396,6 +519,10 @@ public class datManager {
             }
         }
 
+        if (teamData == null) {
+            throw new SimpleCommandExceptionType(Component.literal("You do not own a team!")).create();
+        }
+
         int count = getTeamMemberCount(teamName);
         int memberCap = data.getCompoundOrEmpty("settings").getIntOr("maxMembers", 5);
 
@@ -403,10 +530,6 @@ public class datManager {
             throw new SimpleCommandExceptionType(
                     Component.nullToEmpty("Your team is currently full, please kick someone!")
             ).create();
-        }
-
-        if (teamData == null) {
-            throw new SimpleCommandExceptionType(Component.literal("You do not own a team!")).create();
         }
 
         ListTag invites = teamData.getListOrEmpty("invites");
@@ -425,11 +548,11 @@ public class datManager {
         Component accept = Component.literal("[ACCEPT]")
                 .withStyle(ChatFormatting.GREEN)
                 .withStyle(s -> s.withClickEvent(
-                        new ClickEvent.RunCommand("/allied invAccept " + finalTeamName)));
+                        new ClickEvent.RunCommand("/allied invAccept " + quote(finalTeamName))));
         Component deny = Component.literal("[DENY]")
                 .withStyle(ChatFormatting.RED)
                 .withStyle(s -> s.withClickEvent(
-                        new ClickEvent.RunCommand("/allied invDeny " + finalTeamName)));
+                        new ClickEvent.RunCommand("/allied invDeny " + quote(finalTeamName))));
 
         targetPlayer.sendSystemMessage(
                 Component.literal("You were invited to join team ")
@@ -451,17 +574,16 @@ public class datManager {
         }
 
         ListTag invites = teamData.getListOrEmpty("invites");
-        boolean found = false;
+        int index = -1;
 
         for (int i = 0; i < invites.size(); i++) {
             if (playerStr.equals(invites.getString(i).orElse(""))) {
-                invites.remove(i);
-                found = true;
+                index = i;
                 break;
             }
         }
 
-        if (!found) {
+        if (index == -1) {
             throw new SimpleCommandExceptionType(Component.literal("You do not have an invite to this team!")).create();
         }
 
@@ -469,20 +591,13 @@ public class datManager {
             if (isInTeam(playerUUID)) {
                 throw new SimpleCommandExceptionType(Component.literal("You are already in a team!")).create();
             }
+            checkTeamNotFull(teamName);
 
             ListTag members = teamData.getListOrEmpty("members");
             members.add(StringTag.valueOf(playerStr));
-
-            for (String name : teams.keySet()) {
-                CompoundTag t = teams.getCompoundOrEmpty(name);
-                ListTag otherInvites = t.getListOrEmpty("invites");
-
-                for (int i = otherInvites.size() - 1; i >= 0; i--) {
-                    if (playerStr.equals(otherInvites.getString(i).orElse(""))) {
-                        otherInvites.remove(i);
-                    }
-                }
-            }
+            clearPendingFor(playerStr);
+        } else {
+            invites.remove(index);
         }
 
         save();
@@ -632,7 +747,7 @@ public class datManager {
                             .withColor(ChatFormatting.GREEN)
                             .withClickEvent(
                                     new ClickEvent.RunCommand(
-                                            "/alliedAdmin modify_settings " + teamName + " " + key + " true"
+                                            "/alliedAdmin modifySettings " + quote(teamName) + " " + key + " true"
                                     )
                             )
                     );
@@ -642,7 +757,7 @@ public class datManager {
                             .withColor(ChatFormatting.RED)
                             .withClickEvent(
                                     new ClickEvent.RunCommand(
-                                            "/alliedAdmin modify_settings " + teamName + " " + key + " false"
+                                            "/alliedAdmin modifySettings " + quote(teamName) + " " + key + " false"
                                     )
                             )
                     );
@@ -689,7 +804,7 @@ public class datManager {
                 if (team == foundTeam) continue;
 
                 if (field.equals("name")) {
-                    if (teamName.equalsIgnoreCase(value)) {
+                    if (toTeamId(teamName).equals(toTeamId(value))) {
                         throw new SimpleCommandExceptionType(
                                 Component.literal("A team with that name already exists.")
                         ).create();
@@ -718,13 +833,21 @@ public class datManager {
                             Component.nullToEmpty("Team Name is too long!")
                     ).create();
                 }
-                if (foundTeamName.equalsIgnoreCase(value)) {
+                if (foundTeamName.equals(value)) {
 						throw new SimpleCommandExceptionType(
-								Text.literal("You are already using this Team Name.")
+								Component.literal("You are already using this Team Name.")
 							).create();
                 }
-                teams.put(value, foundTeam);
                 teams.remove(foundTeamName);
+                teams.put(value, foundTeam);
+
+                // Keep an admin settings block attached to the team after a rename
+                ListTag blocked = settings.getListOrEmpty("blockTeamsSettings");
+                for (int i = 0; i < blocked.size(); i++) {
+                    if (foundTeamName.equalsIgnoreCase(blocked.getString(i).orElse(""))) {
+                        blocked.set(i, StringTag.valueOf(value));
+                    }
+                }
             }
 
             case "tag" -> {
@@ -739,9 +862,8 @@ public class datManager {
 
             case "color" -> {
                 try {
-                    ChatFormatting f = ChatFormatting.valueOf(value.toUpperCase());
-                    if (!f.isColor()) throw new IllegalArgumentException();
-                    foundTeam.putString("tagColor", f.getName());
+                    TeamColor c = TeamColor.valueOf(value.toUpperCase());
+                    foundTeam.putString("tagColor", c.getSerializedName());
                 } catch (Exception e) {
                     throw new SimpleCommandExceptionType(
                             Component.literal("Invalid color.")
