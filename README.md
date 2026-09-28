@@ -1,5 +1,5 @@
 > [!NOTE]
-> **This mod is hardly updated, but I do look at forks and possible contributions to this mod.**
+> **Forks and contributions to this mod are welcome.**
 <hr>
 
 
