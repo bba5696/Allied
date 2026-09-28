@@ -2,6 +2,7 @@ package com.bba.allied.teamUtils;
 
 import com.bba.allied.data.datManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -93,6 +94,7 @@ public class teamUtils {
         });
 
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> teamUtils.handleFriendlyFire(entity, source));
+        ServerTickEvents.END_SERVER_TICK.register(highlightManager::tick);
     }
 
     private static Component formatTeamChat(ServerPlayer player, String originalMessage) {
