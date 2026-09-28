@@ -47,6 +47,7 @@ public class datConfig {
         settings.put("blockTeamsSettings", blockTeamsSettings);
         settings.putInt("maxTeamNameLength", 16);
         settings.putInt("maxTeamTagLength", 4);
+        settings.putBoolean("exportJson", false);
 
         return root;
     }

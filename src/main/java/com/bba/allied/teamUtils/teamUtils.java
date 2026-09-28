@@ -11,16 +11,17 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.ServerScoreboard;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.TeamColor;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.*;
 
 public class teamUtils {
-    static CompoundTag data = datManager.get().getData();
+    // Scoreboard teams created by Allied are prefixed so vanilla /team and other mods' teams are left alone
+    public static final String TEAM_PREFIX = "allied_";
 
     public static final String MOD_ID = "Minecraft";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -53,32 +54,33 @@ public class teamUtils {
 
             UUID uuid = player.getUUID();
 
-            if (teamChatManager.isEnabled(uuid)) {
-                String teamName = datManager.get().getTeam(uuid);
+            String teamName = teamChatManager.isEnabled(uuid) ? datManager.get().getTeam(uuid) : null;
+            if (teamChatManager.isEnabled(uuid) && teamName == null) {
+                teamChatManager.disable(uuid);
+            }
 
-                if (teamName != null) {
-                    CompoundTag teamData = datManager.get().getData()
-                            .getCompoundOrEmpty("teams")
-                            .getCompoundOrEmpty(teamName);
+            if (teamName != null) {
+                CompoundTag teamData = datManager.get().getData()
+                        .getCompoundOrEmpty("teams")
+                        .getCompoundOrEmpty(teamName);
 
-                    teamData.getString("owner").ifPresent(ownerStr -> {
+                teamData.getString("owner").ifPresent(ownerStr -> {
+                    try {
+                        ServerPlayer owner = player.level().getServer().getPlayerList()
+                                .getPlayer(UUID.fromString(ownerStr));
+                        if (owner != null) owner.sendSystemMessage(formatted);
+                    } catch (Exception ignored) {}
+                });
+
+                var members = teamData.getListOrEmpty("members");
+                for (int i = 0; i < members.size(); i++) {
+                    members.getString(i).ifPresent(memberStr -> {
                         try {
-                            ServerPlayer owner = player.level().getServer().getPlayerList()
-                                    .getPlayer(UUID.fromString(ownerStr));
-                            if (owner != null) owner.sendSystemMessage(formatted);
+                            ServerPlayer member = player.level().getServer().getPlayerList()
+                                    .getPlayer(UUID.fromString(memberStr));
+                            if (member != null) member.sendSystemMessage(formatted);
                         } catch (Exception ignored) {}
                     });
-
-                    var members = teamData.getListOrEmpty("members");
-                    for (int i = 0; i < members.size(); i++) {
-                        members.getString(i).ifPresent(memberStr -> {
-                            try {
-                                ServerPlayer member = player.level().getServer().getPlayerList()
-                                        .getPlayer(UUID.fromString(memberStr));
-                                if (member != null) member.sendSystemMessage(formatted);
-                            } catch (Exception ignored) {}
-                        });
-                    }
                 }
             } else {
                 MinecraftServer server = player.level().getServer();
@@ -92,7 +94,7 @@ public class teamUtils {
         });
 
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> teamUtils.handleFriendlyFire(entity, source));
-        ServerTickEvents.END_LEVEL_TICK.register(world -> updateHighlight(world.getServer()));
+        ServerTickEvents.END_SERVER_TICK.register(highlightManager::tick);
     }
 
     private static Component formatTeamChat(ServerPlayer player, String originalMessage) {
@@ -177,7 +179,7 @@ public class teamUtils {
     ) {
         removeAllTeams(server);
 
-        CompoundTag teamsNBT = data.getCompoundOrEmpty("teams");
+        CompoundTag teamsNBT = datManager.get().getData().getCompoundOrEmpty("teams");
 
         for (String internalTeamName : teamsNBT.keySet()) {
             CompoundTag teamData = teamsNBT.getCompoundOrEmpty(internalTeamName);
@@ -187,14 +189,17 @@ public class teamUtils {
                     .getString("tagColor")
                     .orElse("WHITE");
 
-            ChatFormatting teamColor;
+            TeamColor teamColor;
             try {
-                teamColor = ChatFormatting.valueOf(colorStr.toUpperCase());
+                teamColor = TeamColor.valueOf(colorStr.toUpperCase());
             } catch (IllegalArgumentException e) {
-                teamColor = ChatFormatting.WHITE;
+                teamColor = TeamColor.WHITE;
             }
 
             PlayerTeam scoreboardTeam = addTeam(server, internalTeamName, teamColor);
+            scoreboardTeam.setSeeFriendlyInvisibles(
+                    teamData.getCompoundOrEmpty("settings").getBoolean("highlight").orElse(false)
+            );
 
             teamData.getString("owner").ifPresent(ownerUuidStr -> {
                 try {
@@ -255,7 +260,7 @@ public class teamUtils {
                         .append(Component.literal("] ").withStyle(ChatFormatting.WHITE));
 
                 ServerScoreboard scoreboard = server.getScoreboard();
-                String teamId = toTeamId(internalTeamName);
+                String teamId = scoreboardId(internalTeamName);
                 PlayerTeam team = scoreboard.getPlayerTeam(teamId);
                 if (team == null) {
                     team = scoreboard.addPlayerTeam(teamId);
@@ -263,25 +268,32 @@ public class teamUtils {
 
                 team.setPlayerPrefix(prefix);
                 team.setPlayerSuffix(Component.empty());
-                team.setColor(ChatFormatting.WHITE);
+                team.setColor(Optional.of(TeamColor.WHITE));
                 scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
                 return;
             }
         }
 
         ServerScoreboard scoreboard = server.getScoreboard();
-        for (PlayerTeam team : scoreboard.getPlayerTeams()) {
-            if (team.getPlayers().contains(player.getScoreboardName())) {
-                scoreboard.removePlayerFromTeam(player.getScoreboardName(), team);
-            }
+        PlayerTeam current = scoreboard.getPlayersTeam(player.getScoreboardName());
+        if (current != null && current.getName().startsWith(TEAM_PREFIX)) {
+            scoreboard.removePlayerFromTeam(player.getScoreboardName(), current);
         }
     }
 
     public static void removeAllTeams(MinecraftServer server) {
         ServerScoreboard scoreboard = server.getScoreboard();
 
+        // Older versions used unprefixed ids, so also clear those for teams we know about
+        Set<String> legacyIds = new HashSet<>();
+        for (String teamName : datManager.get().getData().getCompoundOrEmpty("teams").keySet()) {
+            legacyIds.add(toTeamId(teamName));
+        }
+
         for (PlayerTeam team : scoreboard.getPlayerTeams().toArray(PlayerTeam[]::new)) {
-            scoreboard.removePlayerTeam(team);
+            if (team.getName().startsWith(TEAM_PREFIX) || legacyIds.contains(team.getName())) {
+                scoreboard.removePlayerTeam(team);
+            }
         }
     }
 
@@ -289,13 +301,17 @@ public class teamUtils {
         return name.toLowerCase().replaceAll("\\s+", "");
     }
 
+    public static String scoreboardId(String name) {
+        return TEAM_PREFIX + toTeamId(name);
+    }
+
     public static PlayerTeam addTeam(
             MinecraftServer server,
             String fullName,
-            ChatFormatting color
+            TeamColor color
     ) {
         ServerScoreboard scoreboard = server.getScoreboard();
-        String teamId = toTeamId(fullName);
+        String teamId = scoreboardId(fullName);
 
         PlayerTeam team = scoreboard.getPlayerTeam(teamId);
         if (team == null) {
@@ -303,7 +319,7 @@ public class teamUtils {
         }
 
         team.setDisplayName(Component.literal(fullName));
-        team.setColor(color);
+        team.setColor(Optional.of(color));
 
         return team;
     }
@@ -363,46 +379,5 @@ public class teamUtils {
             }
         }
         return null;
-    }
-
-    public static void updateHighlight(MinecraftServer server) {
-        CompoundTag teams = datManager.get().getData().getCompoundOrEmpty("teams");
-
-        Map<String, CompoundTag> uuidToTeam = new HashMap<>();
-        for (String teamName : teams.keySet()) {
-            CompoundTag team = teams.getCompoundOrEmpty(teamName);
-            team.getString("owner").ifPresent(owner -> uuidToTeam.put(owner, team));
-
-            var members = team.getListOrEmpty("members");
-            for (int i = 0; i < members.size(); i++) {
-                members.getString(i).ifPresent(member -> uuidToTeam.put(member, team));
-            }
-        }
-
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-
-            CompoundTag playerTeam = uuidToTeam.get(player.getUUID().toString());
-
-            boolean highlightEnabled = false;
-            if (playerTeam != null) {
-                highlightEnabled = playerTeam
-                        .getCompoundOrEmpty("settings")
-                        .getBoolean("highlight")
-                        .orElse(false);
-            }
-
-            for (ServerPlayer teammate : server.getPlayerList().getPlayers()) {
-                if (teammate == player) continue;
-
-                CompoundTag teammateTeam = uuidToTeam.get(teammate.getUUID().toString());
-
-                boolean shouldGlow = highlightEnabled
-                        && teammateTeam != null
-                        && teammateTeam == playerTeam
-                        && teammate.hasEffect(MobEffects.INVISIBILITY);
-
-                teammate.setGlowingTag(shouldGlow);
-            }
-        }
     }
 }

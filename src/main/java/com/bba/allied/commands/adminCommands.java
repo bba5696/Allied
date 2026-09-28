@@ -45,9 +45,6 @@ public class adminCommands {
                         .then(Commands.literal("memberCap")
                                 .then(Commands.argument("value", IntegerArgumentType.integer(1))
                                         .executes(context -> {
-                                            ServerPlayer player = context.getSource().getPlayer();
-                                            if (player == null) return 0;
-
                                             int newCap = IntegerArgumentType.getInteger(context, "value");
                                             CompoundTag data = datManager.get().getData();
                                             CompoundTag settings = data.getCompoundOrEmpty("settings");
@@ -70,9 +67,6 @@ public class adminCommands {
                         .then(Commands.literal("maxTeamNameLength")
                                 .then(Commands.argument("value", IntegerArgumentType.integer(1))
                                         .executes(context -> {
-                                            ServerPlayer player = context.getSource().getPlayer();
-                                            if (player == null) return 0;
-
                                             int newLength = IntegerArgumentType.getInteger(context, "value");
                                             CompoundTag data = datManager.get().getData();
                                             CompoundTag settings = data.getCompoundOrEmpty("settings");
@@ -95,9 +89,6 @@ public class adminCommands {
                         .then(Commands.literal("maxTeamTagLength")
                                 .then(Commands.argument("value", IntegerArgumentType.integer(1))
                                         .executes(context -> {
-                                            ServerPlayer player = context.getSource().getPlayer();
-                                            if (player == null) return 0;
-
                                             int newLength = IntegerArgumentType.getInteger(context, "value");
                                             CompoundTag data = datManager.get().getData();
                                             CompoundTag settings = data.getCompoundOrEmpty("settings");
@@ -111,6 +102,28 @@ public class adminCommands {
 
                                             context.getSource().sendSuccess(
                                                     () -> Component.literal("Team tag max length set to " + newLength),
+                                                    false
+                                            );
+                                            return 1;
+                                        })
+                                )
+                        )
+                        .then(Commands.literal("exportJson")
+                                .then(Commands.argument("value", BoolArgumentType.bool())
+                                        .executes(context -> {
+                                            boolean value = BoolArgumentType.getBool(context, "value");
+                                            datManager.get().getData().getCompoundOrEmpty("settings").putBoolean("exportJson", value);
+
+                                            try {
+                                                datManager.get().save();
+                                            } catch (IOException e) {
+                                                throw new RuntimeException(e);
+                                            }
+
+                                            context.getSource().sendSuccess(
+                                                    () -> Component.literal(value
+                                                            ? "Teams will now be exported to config/allied/teams.json"
+                                                            : "Stopped exporting teams.json"),
                                                     false
                                             );
                                             return 1;
@@ -210,7 +223,8 @@ public class adminCommands {
                                     if (player == null) return 0;
 
                                     UUID uuid = player.getUUID();
-                                    if (pendingResets.containsKey(uuid)) {
+                                    Confirmation existing = pendingResets.get(uuid);
+                                    if (existing != null && System.currentTimeMillis() <= existing.expiryTime()) {
                                         context.getSource().sendFailure(Component.literal(
                                                 "You already have a pending reset! Enter your existing code or wait until it expires."
                                         ));
@@ -321,12 +335,10 @@ public class adminCommands {
                                         })
                                         .executes(context -> {
                                             String teamName = StringArgumentType.getString(context, "teamName");
-                                            ServerPlayer player = context.getSource().getPlayer();
-                                            assert player != null;
 
                                             try {
-                                                datManager.get().handleSettingsAdmin(player.createCommandSourceStack(), teamName, null, null);
-                                            } catch (IOException | CommandSyntaxException e) {
+                                                datManager.get().handleSettingsAdmin(context.getSource(), teamName, null, null);
+                                            } catch (IOException e) {
                                                 throw new RuntimeException(e);
                                             }
 
@@ -346,12 +358,10 @@ public class adminCommands {
                                                 .executes(context -> {
                                                     String teamName = StringArgumentType.getString(context, "teamName");
                                                     String setting = StringArgumentType.getString(context, "setting");
-                                                    ServerPlayer player = context.getSource().getPlayer();
-                                                    assert player != null;
 
                                                     try {
-                                                        datManager.get().handleSettingsAdmin(player.createCommandSourceStack(), teamName, setting, null);
-                                                    } catch (IOException | CommandSyntaxException e) {
+                                                        datManager.get().handleSettingsAdmin(context.getSource(), teamName, setting, null);
+                                                    } catch (IOException e) {
                                                         throw new RuntimeException(e);
                                                     }
 
@@ -362,12 +372,10 @@ public class adminCommands {
                                                             String teamName = StringArgumentType.getString(context, "teamName");
                                                             String setting = StringArgumentType.getString(context, "setting");
                                                             boolean value = BoolArgumentType.getBool(context, "value");
-                                                            ServerPlayer player = context.getSource().getPlayer();
-                                                            assert player != null;
 
                                                             try {
-                                                                datManager.get().handleSettingsAdmin(player.createCommandSourceStack(), teamName, setting, value);
-                                                            } catch (IOException | CommandSyntaxException e) {
+                                                                datManager.get().handleSettingsAdmin(context.getSource(), teamName, setting, value);
+                                                            } catch (IOException e) {
                                                                 throw new RuntimeException(e);
                                                             }
 

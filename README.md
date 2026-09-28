@@ -40,10 +40,23 @@
 - `/alliedAdmin reset [<Code>]` A command to wipe all mod data and reset it to default, after entering the command, a code thats valid for 60s will be given to confirm the reset
 - `/alliedAdmin blockSettings <teamName> <boolean>` Prevents the team's owner from changing their settings
 - `/alliedAdmin modifySettings <teamName> <settings> <boolean>` Modifies the settings of a team
+- `/alliedAdmin maxTeamNameLength <value>` Set the max length of team names
+- `/alliedAdmin maxTeamTagLength <value>` Set the max length of team tags
+- `/alliedAdmin exportJson <boolean>` Export all teams to `config/allied/teams.json` whenever they change, useful for showing teams on a website
+
+# Placeholders
+
+If [Placeholder API](https://modrinth.com/mod/placeholder-api) is installed, Allied adds these placeholders (empty for players without a team):
+
+- `%allied:team_name%` The team's name
+- `%allied:team_tag%` The team's tag
+- `%allied:team_color%` The team's color
+- `%allied:team_prefix%` The coloured `[TAG] ` prefix used in the tab list
+- `%allied:team_members%` Number of players in the team, owner included
 
 <hr>
 
-**This description is currently up to date with v1.1.0 of the mod**
+**This description is currently up to date with v1.3.0 of the mod**
 
 **If you like the mod, please consider donating to support my development**
 
