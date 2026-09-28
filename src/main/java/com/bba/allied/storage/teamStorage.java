@@ -58,6 +58,7 @@ public final class teamStorage {
         final StorageContainer container;
         final Map<String, Integer> openedWith;
         int lastSavedCount;
+        int lastPlayerHash;
         boolean dirty;
         boolean closed;
 
@@ -68,6 +69,7 @@ public final class teamStorage {
             this.container = container;
             this.openedWith = countItems(container.getItems());
             this.lastSavedCount = total(openedWith);
+            this.lastPlayerHash = playerHash(player);
         }
 
         public boolean isActive() {
@@ -148,14 +150,18 @@ public final class teamStorage {
 
     public static void tick() {
         for (Session session : new ArrayList<>(SESSIONS.values())) {
-            if (session.dirty) flush(session);
+            // Moving an item from the cursor into the player's inventory doesn't touch the storage,
+            // so the player's own inventory is watched too; otherwise a crash could lose that item
+            if (session.dirty || playerHash(session.player) != session.lastPlayerHash) {
+                flush(session);
+            }
         }
     }
 
     // Before vanilla autosaves player data, so a saved player is never ahead of the saved storage
     public static void flushAll() {
         for (Session session : new ArrayList<>(SESSIONS.values())) {
-            if (session.dirty) flush(session);
+            flush(session);
         }
     }
 
@@ -192,10 +198,24 @@ public final class teamStorage {
                 writeStorage(session);
             }
             session.lastSavedCount = count;
+            session.lastPlayerHash = playerHash(session.player);
         } catch (IOException e) {
             LOGGER.error("Failed to save team storage for {} ({})", session.teamName, session.teamId, e);
             session.dirty = true;
         }
+    }
+
+    // Cheap fingerprint of the player's inventory and cursor item
+    private static int playerHash(ServerPlayer player) {
+        int hash = 1;
+        var inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            hash = 31 * hash + (stack.isEmpty() ? 0 : ItemStack.hashItemAndComponents(stack) * 31 + stack.getCount());
+        }
+        ItemStack carried = player.containerMenu.getCarried();
+        hash = 31 * hash + (carried.isEmpty() ? 0 : ItemStack.hashItemAndComponents(carried) * 31 + carried.getCount());
+        return hash;
     }
 
     private static void savePlayer(ServerPlayer player) {

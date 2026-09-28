@@ -52,7 +52,8 @@ public class Allied implements ModInitializer {
         teamFeatures.register();
 
         ServerTickEvents.END_SERVER_TICK.register(server -> teamStorage.tick());
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> teamStorage.onDisconnect(handler.player));
+        // DISCONNECT can fire on a network thread, so hand it to the server thread
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> server.execute(() -> teamStorage.onDisconnect(handler.player)));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> teamStorage.closeAll());
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
