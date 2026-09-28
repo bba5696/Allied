@@ -48,6 +48,7 @@ public class datConfig {
         settings.putInt("maxTeamNameLength", 16);
         settings.putInt("maxTeamTagLength", 4);
         settings.putBoolean("exportJson", false);
+        settings.putBoolean("storageDefault", false);
 
         return root;
     }

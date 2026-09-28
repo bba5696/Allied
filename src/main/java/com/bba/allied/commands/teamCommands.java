@@ -216,6 +216,32 @@ public class teamCommands {
                                                 return 1;
                                             }))))
 
+                    // Every existing team, and the default for teams created later
+                    .then(Commands.literal("storageAll")
+                            .then(Commands.argument("value", BoolArgumentType.bool())
+                                    .executes(context -> {
+                                        boolean value = BoolArgumentType.getBool(context, "value");
+                                        CompoundTag data = datManager.get().getData();
+                                        CompoundTag teams = data.getCompoundOrEmpty("teams");
+
+                                        for (String teamName : teams.keySet()) {
+                                            teams.getCompoundOrEmpty(teamName).putBoolean("storageEnabled", value);
+                                        }
+                                        data.getCompoundOrEmpty("settings").putBoolean("storageDefault", value);
+
+                                        try {
+                                            datManager.get().save();
+                                        } catch (IOException e) {
+                                            throw saveFailed(e);
+                                        }
+
+                                        int count = teams.size();
+                                        context.getSource().sendSuccess(() -> Component.literal(
+                                                "Team storage " + (value ? "enabled" : "disabled") + " for all " + count
+                                                        + " teams and for new teams"), true);
+                                        return 1;
+                                    })))
+
                     // Rescue a team whose owner stopped playing
                     .then(Commands.literal("transfer")
                             .then(Commands.argument("teamName", StringArgumentType.string())

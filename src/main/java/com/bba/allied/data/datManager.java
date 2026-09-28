@@ -72,7 +72,7 @@ public class datManager {
                 changed = true;
             }
             if (!team.contains("storageEnabled")) {
-                team.putBoolean("storageEnabled", false);
+                team.putBoolean("storageEnabled", data.getCompoundOrEmpty("settings").getBooleanOr("storageDefault", false));
                 changed = true;
             }
 
@@ -566,6 +566,7 @@ public class datManager {
         }
 
         CompoundTag team = createTeam(teamTag, ownerUUID);
+        team.putBoolean("storageEnabled", settings.getBooleanOr("storageDefault", false));
         teams.put(teamName, team);
 
         try {

@@ -50,6 +50,7 @@
 - `/alliedAdmin maxTeamNameLength <value>` Set the max length of team names
 - `/alliedAdmin maxTeamTagLength <value>` Set the max length of team tags
 - `/alliedAdmin storage <teamName> <boolean>` Enable or disable shared team storage for a team (disabled by default)
+- `/alliedAdmin storageAll <boolean>` Enable or disable team storage for every team, and set whether new teams start with it
 - `/alliedAdmin transfer <teamName> <playerName>` Give a team to one of its members, for teams whose owner stopped playing
 - `/alliedAdmin exportJson <boolean>` Export all teams to `config/allied/teams.json` whenever they change, useful for showing teams on a website
 
