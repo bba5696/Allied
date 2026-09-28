@@ -3,14 +3,14 @@
 	"id": "allied",
 	"version": "${version}",
 	"name": "Allied",
-	"description": "A mod re-imagining teams, an all in one mod with essential team features for fabric, forge and neo-forge",
+	"description": "A mod re-imagining teams, an all in one mod with essential team features for fabric",
 	"authors": [
 		"Bba"
 	],
 	"contact": {
 		"sources": "https://github.com/bba5696/Allied"
 	},
-	"license": "All Rights Reserved",
+	"license": "MIT",
 	"icon": "assets/allied/allied.png",
 	"environment": "server",
 	"entrypoints": {
