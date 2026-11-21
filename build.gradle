@@ -39,6 +39,7 @@ dependencies {
 
 	// Optional: Placeholder API support is only enabled when the mod is installed
 	compileOnly "eu.pb4:placeholder-api:${project.placeholder_api_version}"
+	localRuntime "eu.pb4:placeholder-api:${project.placeholder_api_version}"
 }
 
 processResources {
@@ -86,5 +87,23 @@ publishing {
 		// Notice: This block does NOT have the same function as the block in the top level.
 		// The repositories here will be used for publishing your artifact, not for
 		// retrieving dependencies.
+	}
+}
+// Local test setup: one server and two clients with fixed usernames
+loom {
+	runs {
+		server {
+			runDir "run/server"
+		}
+		client {
+			runDir "run/client1"
+			programArgs "--username", "Tester1"
+		}
+		client2 {
+			inherit client
+			configName = "Minecraft Client 2"
+			runDir "run/client2"
+			programArgs "--username", "Tester2"
+		}
 	}
 }
